@@ -14,10 +14,12 @@
   "dependencies": {
     "@google/genai": "^2.21.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@tonaljs/tonal": "^4.10.0",
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "fast-xml-parser": "^5.11.1",
     "firebase": "^12.18.0",
     "idb": "^8.0.3",
     "lucide-react": "^0.546.0",

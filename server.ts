@@ -3,6 +3,9 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { extractSongDNA } from "./server/music/song-dna";
+import { buildProductionBlueprint } from "./server/music/production-blueprint";
+import { buildGeminiMusicBrief, buildLyriaPromptPreview } from "./server/music/gemini-music-brief";
 
 dotenv.config();
 
@@ -10,11 +13,37 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // Increase payload limit for large XML files
+  app.use(express.json({ limit: '10mb' }));
 
   // --- API Routes ---
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", message: "ProjectMusic00 API is running." });
+  });
+
+  app.post("/api/music/blueprint", (req, res) => {
+    try {
+      const { musicXml, style, language, mood, genre, sourceRunId } = req.body;
+      
+      if (!musicXml || typeof musicXml !== 'string') {
+        return res.status(400).json({ error: "Missing or invalid musicXml" });
+      }
+
+      const songDNA = extractSongDNA(musicXml, sourceRunId);
+      const blueprint = buildProductionBlueprint(songDNA, { style, language, mood, genre });
+      const geminiBrief = buildGeminiMusicBrief(blueprint);
+      const lyriaPromptPreview = buildLyriaPromptPreview(blueprint);
+
+      res.json({
+        songDNA,
+        blueprint,
+        geminiBrief,
+        lyriaPromptPreview
+      });
+    } catch (error: any) {
+      console.error("Blueprint generation error:", error);
+      res.status(400).json({ error: error.message || "Failed to parse MusicXML and generate blueprint" });
+    }
   });
 
   app.post("/api/generate", async (req, res) => {

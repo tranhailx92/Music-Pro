@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, FileMusic, Loader2, ArrowRight, Save, Music, Download } from 'lucide-react';
+import { Sparkles, FileMusic, Loader2, ArrowRight, Save, Music, Download, Copy, Headphones } from 'lucide-react';
 import { generateWithAI } from '../services/ai';
 import { knowledgeService } from '../services/knowledge';
 import { runsService } from '../services/runs';
@@ -23,18 +23,53 @@ export const ComposeView: React.FC = () => {
   
   const [leadSheetXml, setLeadSheetXml] = useState('');
   const [finalXml, setFinalXml] = useState('');
+  
+  // AI Audio Production State
+  const [blueprintData, setBlueprintData] = useState<any>(null);
+  const [generatingBlueprint, setGeneratingBlueprint] = useState(false);
+  
+  const handleGenerateBlueprint = async () => {
+    setGeneratingBlueprint(true);
+    try {
+      const res = await fetch('/api/music/blueprint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          musicXml: finalXml,
+          style: style,
+          idea: idea
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setBlueprintData(data);
+      addToast('Đã phân tích thông tin bản thu AI');
+    } catch (e: any) {
+      addToast('Lỗi: ' + e.message);
+    } finally {
+      setGeneratingBlueprint(false);
+    }
+  };
+
+  const handleCopyGeminiBrief = () => {
+    if (blueprintData?.geminiBrief) {
+      navigator.clipboard.writeText(blueprintData.geminiBrief);
+      addToast('Đã sao chép yêu cầu cho Gemini');
+    }
+  };
 
   const handleDownload = (xml: string, filename: string) => {
     const blob = new Blob([xml], { type: 'application/vnd.recordare.musicxml+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename.replace(/\s+/g, '_')}.musicxml`;
+    a.download = `${filename.replace(/\\s+/g, '_')}.musicxml`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
+
 
   const handleGenerateMetaPrompt = async () => {
     if (!idea) return addToast('Vui lòng nhập ý tưởng');
@@ -322,6 +357,69 @@ export const ComposeView: React.FC = () => {
                 {finalXml ? 'Tạo lại bản phối' : 'Tạo & Lưu'}
               </button>
             </div>
+
+            {/* AI Audio Section */}
+            {finalXml && (
+              <div className="mt-8 pt-8 border-t border-white/10">
+                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                  <Headphones className="w-5 h-5 text-indigo-400" />
+                  Tạo bản thu AI
+                </h3>
+                <p className="text-sm text-zinc-400 mb-6">
+                  Sử dụng bản ký âm đã hoàn thành để tạo bản nhạc audio thực tế qua AI.
+                </p>
+
+                {!blueprintData ? (
+                  <button
+                    onClick={handleGenerateBlueprint}
+                    disabled={generatingBlueprint}
+                    className="flex items-center gap-2 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/20 px-6 py-3 rounded-xl font-bold transition-colors"
+                  >
+                    {generatingBlueprint ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    Tạo thông tin bản thu
+                  </button>
+                ) : (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-6">
+                    <h4 className="font-bold text-white mb-4">Thông tin tạo bản thu</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="bg-black/50 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-zinc-500 block mb-1">Phong cách</span>
+                        <span className="text-sm font-bold">{blueprintData.blueprint.identity.genre}</span>
+                      </div>
+                      <div className="bg-black/50 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-zinc-500 block mb-1">BPM / Nhịp</span>
+                        <span className="text-sm font-bold">{blueprintData.blueprint.musical.tempo} / {blueprintData.blueprint.musical.meter}</span>
+                      </div>
+                      <div className="bg-black/50 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-zinc-500 block mb-1">Cấu trúc</span>
+                        <span className="text-sm font-bold truncate block">{blueprintData.blueprint.structure.map((s:any) => s.name).join(', ')}</span>
+                      </div>
+                      <div className="bg-black/50 p-3 rounded-lg border border-white/5">
+                        <span className="text-xs text-zinc-500 block mb-1">Quãng giọng</span>
+                        <span className="text-sm font-bold">{blueprintData.blueprint.musical.vocalRange || 'N/A'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-4">
+                      <button
+                        onClick={handleCopyGeminiBrief}
+                        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
+                      >
+                        <Copy className="w-4 h-4" />
+                        Sao chép cho Gemini
+                      </button>
+                      <button
+                        disabled
+                        className="flex items-center gap-2 bg-indigo-600/50 text-white/50 px-5 py-2.5 rounded-lg font-bold text-sm cursor-not-allowed"
+                      >
+                        <Headphones className="w-4 h-4" />
+                        Tạo bằng AI - Sắp có
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
