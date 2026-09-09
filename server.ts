@@ -85,17 +85,28 @@ async function startServer() {
       
       const interaction = await client.interactions.create({
         model,
-        input: lyriaPrompt
+        input: lyriaPrompt,
+        // @ts-ignore - Support for response_format depends on SDK version
+        response_format: {
+          type: "audio"
+        }
       });
 
-      if (!interaction.output_audio) {
-        return res.status(500).json({ error: { code: "LYRIA_NO_AUDIO", message: "Lyria API returned no audio." } });
+      const generatedAudio = interaction.output_audio;
+
+      if (!generatedAudio?.data) {
+        return res.status(500).json({ 
+          error: { 
+            code: "LYRIA_NO_AUDIO", 
+            message: "Lyria API returned no audio." 
+          } 
+        });
       }
 
       res.json({
-        audioBase64: interaction.output_audio,
-        mimeType: "audio/mpeg",
-        generatedText: interaction.output_text,
+        audioBase64: generatedAudio.data,
+        mimeType: generatedAudio.mime_type || (generatedAudio as any).mimeType || "audio/mpeg",
+        generatedText: interaction.output_text || "",
         model
       });
     } catch (error: any) {

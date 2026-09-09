@@ -60,6 +60,10 @@ export const ComposeView: React.FC = () => {
         throw new Error(data.error?.message || 'Lỗi tạo audio');
       }
       
+      if (!data.audioBase64 || typeof data.audioBase64 !== "string") {
+        throw new Error("Dữ liệu âm thanh từ máy chủ không hợp lệ.");
+      }
+      
       const binaryString = atob(data.audioBase64);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
@@ -89,7 +93,7 @@ export const ComposeView: React.FC = () => {
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) throw new Error(data.error?.message || "Không thể tạo thông tin bản thu.");
       setBlueprintData(data);
       addToast('Đã phân tích thông tin bản thu AI');
     } catch (e: any) {
