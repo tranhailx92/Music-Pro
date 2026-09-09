@@ -25,6 +25,10 @@ export const ComposeView: React.FC = () => {
   const [leadSheetXml, setLeadSheetXml] = useState('');
   const [finalXml, setFinalXml] = useState('');
   
+  const [docRefs, setDocRefs] = useState<string[]>([]);
+  const [metaPlan, setMetaPlan] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
   // AI Audio Production State
   const [blueprintData, setBlueprintData] = useState<any>(null);
   const [generatingBlueprint, setGeneratingBlueprint] = useState(false);
@@ -127,13 +131,20 @@ export const ComposeView: React.FC = () => {
     if (!idea) return addToast('Vui lòng nhập ý tưởng');
     setLoading(true);
     try {
-      const systemInst = "You are an expert music composer AI. Generate a meta-prompt for a 4-step music composition pipeline based on the user's idea. The meta-prompt should outline the emotional arc, structure, and required knowledge references.";
-      const prompt = `Idea: ${idea}\nStyle: ${style}\n\nGenerate the meta-prompt.`;
+      const res = await fetch('/api/compose/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idea, style })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi chuẩn bị sáng tác');
       
-      const res = await generateWithAI(prompt, systemInst);
-      setMetaPrompt(res);
+      setComposePrompt(data.composePrompt);
+      setArrangePrompt(data.arrangePrompt);
+      setDocRefs(data.docRefs);
+      setMetaPlan(data.planSummary);
       setStep(2);
-      addToast('Đã tạo siêu lệnh (Meta-prompt)');
+      addToast('Đã hoàn thành bước Hiểu ý tưởng');
     } catch (e: any) {
       addToast(e.message);
     } finally {
@@ -141,58 +152,26 @@ export const ComposeView: React.FC = () => {
     }
   };
 
-  const handleCraftPrompts = async () => {
-    setLoading(true);
-    try {
-      const catalog = await knowledgeService.getDocById('catalog');
-      const systemInst = `You are an AI prompt engineer. Use this catalog to select DOC_REFS:\n${catalog?.content || 'No catalog found'}\n\nBased on the meta-prompt, generate a 'compose-prompt' (for lead sheet) and an 'arrange-prompt' (for full orchestration). Format as JSON: { "composePrompt": "...", "arrangePrompt": "..." }`;
-      
-      const res = await generateWithAI(`Meta-Prompt:\n${metaPrompt}`, systemInst);
-      
-      const jsonMatch = res.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI did not return valid JSON");
-      const parsed = JSON.parse(jsonMatch[0]);
-      
-      setComposePrompt(parsed.composePrompt);
-      setArrangePrompt(parsed.arrangePrompt);
-      setStep(3);
-      addToast('Đã tạo các lệnh nháp');
-    } catch (e: any) {
-      addToast('Tạo lệnh thất bại: ' + e.message);
-    } finally {
-      setLoading(false);
-    }
+  const handleGoToStep3 = () => {
+    setStep(3);
   };
 
   const handleGenerateLeadSheet = async () => {
     setLoading(true);
     try {
-      const systemInst = "You are a master composer. Output ONLY valid MusicXML 4.0 containing a lead sheet (melody, lyrics, chords). Do not use markdown blocks, just raw XML.";
-      let xml = '';
-      try {
-        const res = await generateWithAI(composePrompt, systemInst);
-        const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-        xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
-        const isValid = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
-        if (!isValid) throw new Error('XMLValidationFailed');
-      } catch (err: any) {
-        if (err.message === 'XMLValidationFailed') {
-          addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
-          const res2 = await generateWithAI(composePrompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
-          const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-          xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
-          const isValid2 = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
-          if (!isValid2) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
-        } else {
-          throw err;
-        }
-      }
+      const res = await fetch('/api/compose/lead-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ composePrompt, docRefs, metaPlan })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi tạo bản nhạc');
       
-      setLeadSheetXml(xml);
+      setLeadSheetXml(data.xml);
       setStep(4);
-      addToast('Đã tạo bản ký âm (Lead Sheet)');
+      addToast('Đã tạo bản nhạc (Lead Sheet)');
     } catch (e: any) {
-      addToast('Tạo bản ký âm thất bại: ' + e.message);
+      addToast('Tạo bản nhạc thất bại: ' + e.message);
     } finally {
       setLoading(false);
     }
@@ -201,39 +180,24 @@ export const ComposeView: React.FC = () => {
   const handleGenerateArrangement = async () => {
     setLoading(true);
     try {
-      const systemInst = "You are an expert arranger. Output ONLY valid MusicXML 4.0 containing a full arrangement based on the provided lead sheet. Do not use markdown blocks, just raw XML.";
-      const prompt = `Arrange Prompt:\n${arrangePrompt}\n\nLead Sheet Context:\n${leadSheetXml}`;
+      const res = await fetch('/api/compose/arrange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadSheetXml, arrangePrompt, docRefs })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi phối khí');
       
-      let xml = '';
-      try {
-        const res = await generateWithAI(prompt, systemInst);
-        const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-        xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
-        const isValid = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
-        if (!isValid) throw new Error('XMLValidationFailed');
-      } catch (err: any) {
-        if (err.message === 'XMLValidationFailed') {
-          addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
-          const res2 = await generateWithAI(prompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
-          const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-          xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
-          const isValid2 = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
-          if (!isValid2) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
-        } else {
-          throw err;
-        }
-      }
-      
-      setFinalXml(xml);
+      setFinalXml(data.xml);
       
       // Save Run
       await runsService.saveRun({
         idea,
         style,
-        metaPrompt,
+        metaPrompt: metaPlan,
         composePrompt,
         arrangePrompt,
-        musicXml: xml,
+        musicXml: data.xml,
         status: 'completed'
       });
       
@@ -253,8 +217,8 @@ export const ComposeView: React.FC = () => {
             <Sparkles className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold">Sáng tác mới</h1>
-            <p className="text-zinc-400">Quy trình sáng tác 4 bước (MusicXML)</p>
+            <h1 className="text-3xl font-bold">Sáng tác</h1>
+            <p className="text-zinc-400">Từ ý tưởng đến bản nhạc hoàn chỉnh</p>
           </div>
         </div>
         
@@ -274,29 +238,30 @@ export const ComposeView: React.FC = () => {
       <div className="flex-1 min-h-0 bg-white/5 border border-white/10 rounded-2xl p-6 flex flex-col">
         {step === 1 && (
           <div className="space-y-6 flex-1 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Bước 1: Ý tưởng</h2>
+            <h2 className="text-xl font-bold text-white">Bước 1: Hiểu ý tưởng</h2>
             <div className="flex-1 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Phong cách tham chiếu</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Phong cách</label>
                 <select 
                   value={style}
                   onChange={(e) => setStyle(e.target.value)}
                   className="w-full bg-black border border-white/10 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
                 >
-                  <option>V-Pop Ballad</option>
-                  <option>Bolero</option>
-                  <option>Contemporary Folk</option>
-                  <option>Acoustic Indie</option>
-                  <option>Heroic March</option>
+                  <option value="STYLE.VN.VPOP-BALLAD">V-Pop Ballad</option>
+                  <option value="STYLE.VN.BOLERO-TRU-TINH">Bolero / Trữ tình</option>
+                  <option value="STYLE.VN.DAN-CA-CONTEMPORARY">Dân ca đương đại</option>
+                  <option value="STYLE.VN.ACOUSTIC-INDIE">Acoustic Indie</option>
+                  <option value="STYLE.VN.HEROIC-MARCH">Hành khúc (Heroic March)</option>
+                  <option value="STYLE.POP.BALLAD-GENERIC">Pop Ballad (Generic)</option>
                 </select>
               </div>
               <div className="flex-1 flex flex-col">
-                <label className="block text-sm font-medium text-zinc-400 mb-2">Ý tưởng / Chủ đề âm nhạc</label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">Ý tưởng / Chủ đề</label>
                 <textarea 
                   value={idea}
                   onChange={(e) => setIdea(e.target.value)}
                   className="flex-1 w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-indigo-500 resize-none"
-                  placeholder="VD: Một bản V-Pop ballad về một buổi chiều mưa ở Hà Nội, sử dụng guitar acoustic và piano..."
+                  placeholder="VD: Một bài hát về nỗi nhớ quê hương, sử dụng hình ảnh con đò và dòng sông..."
                 />
               </div>
             </div>
@@ -307,7 +272,7 @@ export const ComposeView: React.FC = () => {
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold transition-colors"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                Tạo siêu lệnh (Meta-Prompt)
+                Hiểu ý tưởng
               </button>
             </div>
           </div>
@@ -315,22 +280,60 @@ export const ComposeView: React.FC = () => {
 
         {step === 2 && (
           <div className="space-y-6 flex-1 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Bước 2: Xây dựng siêu lệnh</h2>
-            <p className="text-sm text-zinc-400">Xem lại và tinh chỉnh cách tiếp cận trước khi tạo các lệnh sáng tác chi tiết.</p>
-            <textarea 
-              value={metaPrompt}
-              onChange={(e) => setMetaPrompt(e.target.value)}
-              className="flex-1 w-full bg-black border border-white/10 rounded-xl p-4 text-white focus:outline-none focus:border-indigo-500 font-mono text-sm resize-none"
-            />
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Bước 2: Phương án sáng tác</h2>
+              <button 
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                {showAdvanced ? 'Ẩn nâng cao' : 'Chế độ nâng cao'}
+              </button>
+            </div>
+            
+            <div className="bg-black/30 border border-white/5 rounded-xl p-6">
+              <h3 className="text-indigo-400 font-bold mb-3 uppercase text-xs tracking-widest">Tóm tắt phương án</h3>
+              <p className="text-zinc-200 leading-relaxed whitespace-pre-wrap">{metaPlan}</p>
+            </div>
+
+            {showAdvanced && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Knowledge Refs</label>
+                  <div className="flex flex-wrap gap-2">
+                    {docRefs.map(ref => (
+                      <span key={ref} className="bg-white/5 border border-white/10 px-2 py-1 rounded text-[10px] font-mono text-zinc-400">{ref}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Compose Prompt</label>
+                    <textarea 
+                      value={composePrompt}
+                      onChange={(e) => setComposePrompt(e.target.value)}
+                      className="w-full h-32 bg-black border border-white/10 rounded-lg p-2 text-xs font-mono text-zinc-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Arrange Prompt</label>
+                    <textarea 
+                      value={arrangePrompt}
+                      onChange={(e) => setArrangePrompt(e.target.value)}
+                      className="w-full h-32 bg-black border border-white/10 rounded-lg p-2 text-xs font-mono text-zinc-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between pt-4">
               <button onClick={() => setStep(1)} className="px-6 py-3 text-zinc-400 hover:text-white">Quay lại</button>
               <button 
-                onClick={handleCraftPrompts}
-                disabled={loading}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold transition-colors"
+                onClick={handleGoToStep3}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-xl font-bold transition-colors"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-                Tạo các bộ lệnh
+                Tiếp tục
+                <ArrowRight className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -338,34 +341,47 @@ export const ComposeView: React.FC = () => {
 
         {step === 3 && (
           <div className="space-y-6 flex-1 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Bước 3: Bản ký âm (Giai đoạn 1)</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Bước 3: Bản nhạc</h2>
+              <button 
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                {showAdvanced ? 'Ẩn lệnh' : 'Xem lệnh sáng tác'}
+              </button>
+            </div>
+            
             <div className="flex gap-6 flex-1 min-h-0">
-              <div className="w-1/3 flex flex-col gap-4">
-                <div className="flex-1 flex flex-col">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Lệnh sáng tác</label>
-                  <textarea 
-                    value={composePrompt}
-                    onChange={(e) => setComposePrompt(e.target.value)}
-                    className="flex-1 bg-black border border-white/10 rounded-xl p-4 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none"
-                  />
-                  {leadSheetXml && (
-                    <button 
-                      onClick={() => handleDownload(leadSheetXml, `${idea}_lead_sheet`)}
-                      className="mt-2 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 py-2 rounded-xl text-xs font-bold transition-all border border-white/5"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Tải Lead Sheet
-                    </button>
-                  )}
+              {showAdvanced && (
+                <div className="w-1/3 flex flex-col gap-4 animate-in slide-in-from-left duration-300">
+                  <div className="flex-1 flex flex-col">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Lệnh sáng tác</label>
+                    <textarea 
+                      value={composePrompt}
+                      onChange={(e) => setComposePrompt(e.target.value)}
+                      className="flex-1 bg-black border border-white/10 rounded-xl p-4 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="w-2/3 flex flex-col bg-black rounded-xl border border-white/10 overflow-hidden relative">
+              )}
+              <div className={`${showAdvanced ? 'w-2/3' : 'w-full'} flex flex-col bg-black rounded-xl border border-white/10 overflow-hidden relative`}>
                  {leadSheetXml ? (
-                    <div className="flex-1 overflow-auto"><MusicXMLViewer xmlContent={leadSheetXml} /></div>
+                    <div className="flex-1 overflow-auto">
+                      <div className="absolute top-4 right-4 z-10 flex gap-2">
+                        <button 
+                          onClick={() => handleDownload(leadSheetXml, `${idea}_lead_sheet`)}
+                          className="bg-zinc-900/80 hover:bg-zinc-800 p-2 rounded-lg border border-white/10 text-white"
+                          title="Tải Lead Sheet"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <MusicXMLViewer xmlContent={leadSheetXml} />
+                    </div>
                  ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
                       <Music className="w-16 h-16 mb-4 opacity-50" />
-                      <p>Bản ký âm sẽ hiển thị tại đây</p>
+                      <p>Bản nhạc sẽ hiển thị tại đây</p>
                     </div>
                  )}
               </div>
@@ -376,20 +392,11 @@ export const ComposeView: React.FC = () => {
                 <button 
                   onClick={handleGenerateLeadSheet}
                   disabled={loading}
-                  className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 px-6 py-3 rounded-xl font-bold transition-colors"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-6 py-3 rounded-xl font-bold transition-colors"
                 >
-                  {loading && !leadSheetXml ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                  {leadSheetXml ? 'Tạo lại' : 'Tạo bản ký âm'}
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                  {leadSheetXml ? 'Tạo lại bản nhạc' : 'Bắt đầu sáng tác'}
                 </button>
-                {leadSheetXml && (
-                  <button 
-                    onClick={() => setStep(4)}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 px-6 py-3 rounded-xl font-bold transition-colors"
-                  >
-                    Tiếp tục phối khí
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -397,30 +404,43 @@ export const ComposeView: React.FC = () => {
 
         {step === 4 && (
           <div className="space-y-6 flex-1 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Bước 4: Phối khí hoàn thiện</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Bước 4: Phối khí</h2>
+              <button 
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                {showAdvanced ? 'Ẩn lệnh' : 'Xem lệnh phối khí'}
+              </button>
+            </div>
+            
             <div className="flex gap-6 flex-1 min-h-0">
-              <div className="w-1/3 flex flex-col gap-4">
-                <div className="flex-1 flex flex-col">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Lệnh phối khí</label>
-                  <textarea 
-                    value={arrangePrompt}
-                    onChange={(e) => setArrangePrompt(e.target.value)}
-                    className="flex-1 bg-black border border-white/10 rounded-xl p-4 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none"
-                  />
-                  {finalXml && (
-                    <button 
-                      onClick={() => handleDownload(finalXml, `${idea}_arrangement`)}
-                      className="mt-2 flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 py-2 rounded-xl text-xs font-bold transition-all border border-white/5"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Tải Bản phối
-                    </button>
-                  )}
+              {showAdvanced && (
+                <div className="w-1/3 flex flex-col gap-4 animate-in slide-in-from-left duration-300">
+                  <div className="flex-1 flex flex-col">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Lệnh phối khí</label>
+                    <textarea 
+                      value={arrangePrompt}
+                      onChange={(e) => setArrangePrompt(e.target.value)}
+                      className="flex-1 bg-black border border-white/10 rounded-xl p-4 font-mono text-xs focus:outline-none focus:border-indigo-500 resize-none"
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="w-2/3 flex flex-col bg-black rounded-xl border border-white/10 overflow-hidden relative">
+              )}
+              <div className={`${showAdvanced ? 'w-2/3' : 'w-full'} flex flex-col bg-black rounded-xl border border-white/10 overflow-hidden relative`}>
                  {finalXml ? (
-                    <div className="flex-1 overflow-auto"><MusicXMLViewer xmlContent={finalXml} /></div>
+                    <div className="flex-1 overflow-auto">
+                      <div className="absolute top-4 right-4 z-10 flex gap-2">
+                        <button 
+                          onClick={() => handleDownload(finalXml, `${idea}_arrangement`)}
+                          className="bg-zinc-900/80 hover:bg-zinc-800 p-2 rounded-lg border border-white/10 text-white"
+                          title="Tải Bản phối"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <MusicXMLViewer xmlContent={finalXml} />
+                    </div>
                  ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-zinc-600">
                       <Music className="w-16 h-16 mb-4 opacity-50" />
@@ -437,7 +457,7 @@ export const ComposeView: React.FC = () => {
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-bold transition-colors"
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                {finalXml ? 'Tạo lại bản phối' : 'Tạo & Lưu'}
+                {finalXml ? 'Tạo lại bản phối' : 'Phối khí & Lưu'}
               </button>
             </div>
 

@@ -22,7 +22,11 @@ export const MusicXMLViewer: React.FC<MusicXMLViewerProps> = ({ xmlContent }) =>
     }
 
     if (xmlContent) {
-      osmdRef.current.load(xmlContent).then(() => {
+      let content = xmlContent.trim();
+      if (!content.startsWith('<?xml')) {
+        content = `<?xml version="1.0" encoding="UTF-8"?>\n${content}`;
+      }
+      osmdRef.current.load(content).then(() => {
         osmdRef.current?.render();
       }).catch(err => {
         console.error("OSMD Load Error:", err);

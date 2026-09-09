@@ -6,6 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import { extractSongDNA } from "./server/music/song-dna";
 import { buildProductionBlueprint } from "./server/music/production-blueprint";
 import { buildGeminiMusicBrief, buildLyriaPrompt } from "./server/music/gemini-music-brief";
+import { prepareComposition, generateLeadSheet, generateArrangement } from "./server/music/composer";
 
 dotenv.config();
 
@@ -113,6 +114,42 @@ async function startServer() {
       console.error("Lyria generation error:", error);
       const code = error.code || 'LYRIA_API_ERROR';
       res.status(500).json({ error: { code, message: error.message || "Failed to generate audio" } });
+    }
+  });
+
+  app.post("/api/compose/prepare", async (req, res) => {
+    try {
+      const { idea, style } = req.body;
+      if (!idea) return res.status(400).json({ error: "Idea is required" });
+      const result = await prepareComposition(idea, style || "Pop Ballad");
+      res.json(result);
+    } catch (error: any) {
+      console.error("Prepare error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/compose/lead-sheet", async (req, res) => {
+    try {
+      const { composePrompt, docRefs, metaPlan } = req.body;
+      if (!composePrompt) return res.status(400).json({ error: "Compose prompt is required" });
+      const xml = await generateLeadSheet(composePrompt, docRefs || [], metaPlan || "");
+      res.json({ xml });
+    } catch (error: any) {
+      console.error("Lead Sheet error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/compose/arrange", async (req, res) => {
+    try {
+      const { leadSheetXml, arrangePrompt, docRefs } = req.body;
+      if (!leadSheetXml || !arrangePrompt) return res.status(400).json({ error: "Missing required fields" });
+      const xml = await generateArrangement(leadSheetXml, arrangePrompt, docRefs || []);
+      res.json({ xml });
+    } catch (error: any) {
+      console.error("Arrange error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
