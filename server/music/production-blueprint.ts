@@ -55,7 +55,7 @@ export function buildProductionBlueprint(
       vocalRange: dna.vocal.lowestNote && dna.vocal.highestNote 
         ? `${dna.vocal.lowestNote} - ${dna.vocal.highestNote}`
         : undefined,
-      targetDuration: dna.musical.approximateDuration
+      targetDuration: dna.musical.timingConfidence === 'partial' ? undefined : dna.musical.approximateDuration
     },
     structure,
     harmony: harmonyBySection.length > 0 ? harmonyBySection : [{ section: 'Toàn bài', progression: [] }],
