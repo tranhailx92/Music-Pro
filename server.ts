@@ -8,18 +8,13 @@ import { buildProductionBlueprint } from "./server/music/production-blueprint";
 import { buildGeminiMusicBrief, buildLyriaPrompt } from "./server/music/gemini-music-brief";
 import { prepareComposition, generateLeadSheet, generateArrangement } from "./server/music/composer";
 
-import { getCatalog } from "./server/projectmusic/knowledge";
+import { getCatalog, getStyleInfo } from "./server/projectmusic/knowledge";
 
 dotenv.config();
 
 function getStyleDisplayName(styleId: string): string {
-  try {
-    const catalog = getCatalog();
-    const page = catalog.pages.find(p => p.id === styleId);
-    return page ? page.summary.split(':')[0] : styleId;
-  } catch (e) {
-    return styleId;
-  }
+  const info = getStyleInfo(styleId);
+  return info ? info.displayName : styleId;
 }
 
 async function startServer() {
@@ -144,25 +139,27 @@ async function startServer() {
 
   app.post("/api/compose/lead-sheet", async (req, res) => {
     try {
-      const { composePrompt, docRefs, metaPlan, songRequest, styleId } = req.body;
+      const { composePrompt, composeDocRefs, metaPlan, songRequest, styleId } = req.body;
       if (!composePrompt) return res.status(400).json({ error: "Compose prompt is required" });
-      const xml = await generateLeadSheet(composePrompt, docRefs || [], metaPlan || "", songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
+      const xml = await generateLeadSheet(composePrompt, composeDocRefs || [], metaPlan || "", songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json({ xml });
     } catch (error: any) {
       console.error("Lead Sheet error:", error);
-      res.status(500).json({ error: error.message });
+      const code = error.code || 'COMPOSITION_FAILED';
+      res.status(500).json({ error: { code, message: error.message } });
     }
   });
 
   app.post("/api/compose/arrange", async (req, res) => {
     try {
-      const { leadSheetXml, arrangePrompt, docRefs, songRequest, styleId } = req.body;
+      const { leadSheetXml, arrangePrompt, arrangeDocRefs, songRequest, styleId } = req.body;
       if (!leadSheetXml || !arrangePrompt) return res.status(400).json({ error: "Missing required fields" });
-      const xml = await generateArrangement(leadSheetXml, arrangePrompt, docRefs || [], songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
+      const xml = await generateArrangement(leadSheetXml, arrangePrompt, arrangeDocRefs || [], songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json({ xml });
     } catch (error: any) {
       console.error("Arrange error:", error);
-      res.status(500).json({ error: error.message });
+      const code = error.code || 'ARRANGEMENT_FAILED';
+      res.status(500).json({ error: { code, message: error.message } });
     }
   });
 
