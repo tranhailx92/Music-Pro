@@ -25,12 +25,18 @@ export function buildProductionBlueprint(
     ? dna.structure.map(s => ({ name: s.sectionName, start: s.measureStart, end: s.measureEnd })) 
     : [{ name: 'Toàn bài', start: 1, end: dna.melody.length ? dna.melody[dna.melody.length - 1].measure : 1 }];
 
-  let chorusMotif: string | undefined;
-  const chorusSection = structure.find(s => s.name.toLowerCase().includes('chorus'));
-  if (chorusSection) {
-     const chorusNotes = dna.melody.filter(m => m.measure >= chorusSection.start && m.measure <= chorusSection.end);
-     if (chorusNotes.length > 0) {
-        chorusMotif = chorusNotes.slice(0, 5).map(n => n.pitch).join(' ');
+  const exactLyrics = options?.lyrics || dna.lyrics.assembledLyric;
+  const lyricsSections: Array<{name: string, text: string}> = [];
+  
+  if (exactLyrics) {
+     const regex = /\[(.*?)\]\n?([^\[]*)/g;
+     let match;
+     while ((match = regex.exec(exactLyrics)) !== null) {
+        const name = match[1].trim();
+        const text = match[2].trim();
+        if (name && text) {
+           lyricsSections.push({ name, text });
+        }
      }
   }
 
@@ -55,7 +61,7 @@ export function buildProductionBlueprint(
     harmony: harmonyBySection.length > 0 ? harmonyBySection : [{ section: 'Toàn bài', progression: [] }],
     melodyIdentity: {
       mainMotif: dna.fingerprint.openingMotif.join(' '),
-      chorusHook: chorusMotif,
+      chorusHook: dna.fingerprint.chorusMotif?.join(' '),
       cadences: dna.fingerprint.cadenceNotes.join(' '),
       contour: dna.fingerprint.contour.slice(0, 10).join(' '),
       constraints: 'Ưu tiên giữ nhận diện giai điệu, đặc biệt motif/hook đã cung cấp.',
@@ -67,8 +73,8 @@ export function buildProductionBlueprint(
       productionDirection: options?.arrangementNotes
     },
     lyrics: {
-      exactLyrics: options?.lyrics || dna.lyrics.assembledLyric,
-      sections: []
+      exactLyrics,
+      sections: lyricsSections
     },
     fidelity: 'high'
   };

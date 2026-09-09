@@ -12,6 +12,7 @@ export interface SongDNA {
     timeSignature?: string;
     approximateDuration?: number;
     divisions?: number;
+    timingConfidence?: 'high' | 'partial';
   };
   vocal: {
     lowestNote?: string;

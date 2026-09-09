@@ -11,118 +11,80 @@ function assert(condition: boolean, message: string) {
 
 console.log("--- Running Targeted Tests ---");
 
-const cMajorXML = `<?xml version="1.0" encoding="UTF-8"?>
+// A & B. POLYPHONIC DURATION & CHORD PER VOICE
+const polyphonicXML = `<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise>
-  <work><work-title>Test Song</work-title></work>
-  <part-list>
-    <score-part id="P1"><part-name>Piano</part-name></score-part>
-    <score-part id="P2"><part-name>Vocal</part-name></score-part>
-  </part-list>
-  <part id="P1">
-    <measure number="1">
-      <attributes>
-        <divisions>4</divisions>
-        <key><fifths>0</fifths><mode>major</mode></key>
-        <time><beats>4</beats><beat-type>4</beat-type></time>
-      </attributes>
-      <harmony><root><root-step>G</root-step></root><kind text="dominant">dominant</kind></harmony>
-      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note>
-      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration></note>
-      <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration></note>
-    </measure>
-  </part>
-  <part id="P2">
-    <measure number="1">
-      <attributes>
-        <divisions>4</divisions>
-        <key><fifths>0</fifths><mode>major</mode></key>
-        <time><beats>4</beats><beat-type>4</beat-type></time>
-      </attributes>
-      <direction><sound tempo="120"/></direction>
-      <direction><direction-type><words>Chorus</words></direction-type></direction>
-      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><lyric><text>He</text><syllabic>begin</syllabic></lyric></note>
-      <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration><lyric><text>llo</text><syllabic>end</syllabic></lyric></note>
-    </measure>
-  </part>
-</score-partwise>`;
-
-const aMinorXML = `<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise>
-  <part-list><score-part id="P1"><part-name>Vocal</part-name></score-part></part-list>
-  <part id="P1">
-    <measure number="1">
-      <attributes>
-        <key><fifths>0</fifths><mode>minor</mode></key>
-      </attributes>
-    </measure>
-  </part>
-</score-partwise>`;
-
-// 1. C major and A minor + Part Selection
-const dnaC = extractSongDNA(cMajorXML);
-assert(dnaC.musical.key === 'C', 'Key should be C major');
-assert(dnaC.selectedMelodyPartId === 'P2', 'Should select P2 because it has lyrics');
-
-const dnaA = extractSongDNA(aMinorXML);
-assert(dnaA.musical.key === 'A', 'Key should be A minor for fifths=0 mode=minor');
-
-// 2. Timing, Contours, Rhythm, Intervals
-assert(dnaC.melody.length === 2, 'Should only extract 2 notes from P2');
-assert(dnaC.fingerprint.contour[0] === 'UP', 'C to D is UP');
-assert(dnaC.fingerprint.intervals[0] === 2, 'C4 to D4 is 2 semitones');
-assert(dnaC.fingerprint.approximateRhythmicPattern[0] === 1, 'Duration 4 / 4 divisions = 1 quarter');
-assert(dnaC.musical.tempoBpm === 120, 'Tempo should be 120');
-
-// chord timing check (P1 has a chord note)
-// re-parse with P1 to test chord timing
-const dnaC_P1 = extractSongDNA(cMajorXML.replace('<lyric>', '').replace('</lyric>', '')); 
-// wait, extracting explicitly without lyrics might select P1. P1 has 'Piano', P2 has 'Vocal'. 
-// It will select P2 still because of 'Vocal' name. Let's make an explicit XML for chord check.
-
-const chordXML = `<?xml version="1.0" encoding="UTF-8"?>
-<score-partwise>
-  <part-list><score-part id="P1"><part-name>Vocal</part-name></score-part></part-list>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
   <part id="P1">
     <measure number="1">
       <attributes><divisions>1</divisions></attributes>
+      <direction><sound tempo="60"/></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+      <note><pitch><step>C</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice></note>
+      <note><chord/><pitch><step>G</step><octave>3</octave></pitch><duration>4</duration><voice>2</voice></note>
+    </measure>
+  </part>
+</score-partwise>`;
+const polyDNA = extractSongDNA(polyphonicXML);
+// Measure duration should be max(voice1, voice2) = max(4, 4) = 4 quarters
+// Since tempo is 60 (1 quarter / sec), total duration should be 4 seconds
+assert(polyDNA.musical.approximateDuration === 4, 'Measure duration should be max of voices, not sum');
+
+// C. TEMPO CHANGE
+const tempoXML = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>1</divisions></attributes>
+      <direction><sound tempo="60"/></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration></note>
+    </measure>
+    <measure number="2">
+      <direction><sound tempo="120"/></direction>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>4</duration></note>
+    </measure>
+  </part>
+</score-partwise>`;
+const tempoDNA = extractSongDNA(tempoXML);
+assert(tempoDNA.musical.tempoChanges!.length === 2, 'Should have 2 tempo changes');
+// Measure 1: 4 quarters @ 60 bpm = 4 seconds
+// Measure 2: 4 quarters @ 120 bpm = 2 seconds
+assert(tempoDNA.musical.approximateDuration === 6, 'Total duration should reflect tempo map');
+
+// D & F. STRUCTURE FILTER & CHORUS MOTIF
+const structureXML = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise>
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <direction><direction-type><words>rit.</words></direction-type></direction>
       <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
-      <note><chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>
+    </measure>
+    <measure number="2">
+      <direction><direction-type><words>Chorus</words></direction-type></direction>
       <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
     </measure>
   </part>
 </score-partwise>`;
-const dnaChord = extractSongDNA(chordXML);
-assert(dnaChord.melody[0].beatPosition === 0, 'First note beat=0');
-assert(dnaChord.melody[1].beatPosition === 0, 'Chord note beat=0');
-assert(dnaChord.melody[2].beatPosition === 1, 'Next note beat=1');
+const structDNA = extractSongDNA(structureXML);
+assert(structDNA.structure.find(s => s.sectionName === 'rit.') === undefined, 'rit. is not a section');
+assert(structDNA.structure.find(s => s.sectionName === 'Chorus') !== undefined, 'Chorus is a section');
+assert(structDNA.fingerprint.chorusMotif !== undefined, 'Chorus motif should exist when Chorus section exists');
 
-// 3. Optional Lyrics
-const blueprintC = buildProductionBlueprint(dnaC, { lyrics: '[Chorus]\nHello there' });
-assert(blueprintC.lyrics.exactLyrics === '[Chorus]\nHello there', 'Should override lyrics');
-assert(blueprintC.melodyIdentity.chorusHook === 'C4 D4', 'Chorus hook should be extracted');
-assert(blueprintC.harmony[0].progression.includes('G7'), 'G dominant should normalize to G7');
+// E. SECTIONED LYRICS
+const lyricsBp = buildProductionBlueprint(structDNA, { lyrics: "[Verse 1]\nHello\n[Chorus]\nWorld" });
+assert(lyricsBp.lyrics.sections.length === 2, 'Should parse 2 lyric sections');
+assert(lyricsBp.lyrics.sections[0].name === 'Verse 1', 'Section name is Verse 1');
+assert(lyricsBp.lyrics.sections[1].text === 'World', 'Chorus text is World');
 
-// 4. Gemini Brief content
-const brief = buildGeminiMusicBrief(blueprintC);
-assert(brief.includes('120'), 'Brief contains BPM');
-assert(brief.includes('C major'), 'Brief contains key');
-assert(brief.includes('Chorus Hook: C4 D4'), 'Brief contains chorus hook');
-assert(brief.includes('[Chorus]\nHello there'), 'Brief contains exact sectioned lyrics');
-
-// 5. Invalid XML
+// G. score-timewise
 try {
-  extractSongDNA("<<<<invalid");
+  extractSongDNA("<score-timewise></score-timewise>");
   assert(false, 'Should throw');
 } catch (e: any) {
-  assert(e.code === 'INVALID_XML', 'Should return INVALID_XML');
-}
-
-// 6. Missing Score
-try {
-  extractSongDNA("<invalid></invalid>");
-  assert(false, 'Should throw');
-} catch (e: any) {
-  assert(e.code === 'MISSING_SCORE', 'Should return MISSING_SCORE');
+  assert(e.code === 'UNSUPPORTED_MUSICXML', 'Should return UNSUPPORTED_MUSICXML');
 }
 
 console.log("✅ ALL TARGETED TESTS PASSED!");

@@ -7,6 +7,20 @@ function toArray(obj: any): any[] {
   return Array.isArray(obj) ? obj : [obj];
 }
 
+const SECTION_VOCABULARY = [
+  'intro', 'verse', 'pre-chorus', 'pre chorus', 'chorus', 'bridge',
+  'interlude', 'solo', 'break', 'outro', 'coda', 'ending',
+  'mở đầu', 'phiên khúc', 'điệp khúc', 'chuyển', 'kết'
+];
+
+function isSectionWord(text: string): boolean {
+  const lower = text.toLowerCase().trim();
+  for (const v of SECTION_VOCABULARY) {
+    if (lower.startsWith(v)) return true;
+  }
+  return false;
+}
+
 export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA {
   const validation = XMLValidator.validate(musicXml);
   if (validation !== true) {
@@ -19,6 +33,9 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
   });
   
   const parsed = parser.parse(musicXml);
+  if ('score-timewise' in parsed) {
+    throw { code: 'UNSUPPORTED_MUSICXML', message: 'score-timewise is not supported yet' };
+  }
   const score = parsed['score-partwise'];
   
   if (!score) {
@@ -42,7 +59,7 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
 
   const partsData = toArray(score.part);
   
-  let selectedPartId = '';
+  let selectedMelodyPartId = '';
   let maxLyrics = -1;
 
   for (const p of partsData) {
@@ -56,7 +73,7 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
     }
     if (lyricCount > maxLyrics) {
       maxLyrics = lyricCount;
-      selectedPartId = p['@_id'];
+      selectedMelodyPartId = p['@_id'];
     }
   }
 
@@ -64,35 +81,30 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
     for (const p of partList) {
       const name = (p['part-name'] || '').toLowerCase();
       if (name.includes('vocal') || name.includes('voice') || name.includes('melody') || name.includes('singer')) {
-        selectedPartId = p['@_id'];
+        selectedMelodyPartId = p['@_id'];
         break;
       }
     }
   }
 
-  if (!selectedPartId && partsData.length > 0) {
-    selectedPartId = partsData[0]['@_id'];
+  if (!selectedMelodyPartId && partsData.length > 0) {
+    selectedMelodyPartId = partsData[0]['@_id'];
   }
 
   const firstPart = partsData[0];
-  const selectedPart = partsData.find(p => p['@_id'] === selectedPartId) || firstPart;
+  const selectedPart = partsData.find(p => p['@_id'] === selectedMelodyPartId) || firstPart;
 
   let tempoBpm: number | undefined;
   let divisions = 1;
   let timeSignature: string | undefined;
   let keyFifths = 0;
   let keyMode = 'major';
+  let timingConfidence: 'high' | 'partial' = 'high';
 
-  const melody: SongDNA['melody'] = [];
-  const lyricsSyllables: string[] = [];
-  let assembledLyric = '';
-
-  let highestMidi = -1;
-  let lowestMidi = 999;
-  
   const harmony: SongDNA['harmony'] = [];
   const structure: SongDNA['structure'] = [];
   let currentSection: any = null;
+  const tempoChanges: Array<{ measure: number; bpm: number }> = [];
 
   // Global parsing for Structure, Harmony, Tempo, Time Signature from ALL Parts
   const globalMeasuresByNumber: Record<number, any[]> = {};
@@ -126,20 +138,32 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
 
     // Check directions across all parts for this measure
     for (const m of measures) {
+      if (m.backup || m.forward) timingConfidence = 'partial';
+      
       const directions = toArray(m.direction);
       for (const dir of directions) {
         const sound = dir.sound;
         if (sound && sound['@_tempo']) {
-          if (!tempoBpm) tempoBpm = parseInt(sound['@_tempo']);
+          const bpm = parseInt(sound['@_tempo']);
+          if (!tempoBpm) tempoBpm = bpm;
+          if (!tempoChanges.find(t => t.measure === mNum)) {
+             tempoChanges.push({ measure: mNum, bpm });
+          }
         }
         
         const types = toArray(dir['direction-type']);
         for (const t of types) {
           let text = '';
-          if (t.rehearsal) text = typeof t.rehearsal === 'object' ? t.rehearsal['#text'] || '' : t.rehearsal;
-          else if (t.words) text = typeof t.words === 'object' ? t.words['#text'] || '' : t.words;
+          let isSection = false;
+          if (t.rehearsal) {
+             text = typeof t.rehearsal === 'object' ? t.rehearsal['#text'] || '' : t.rehearsal;
+             isSection = true;
+          } else if (t.words) {
+             text = typeof t.words === 'object' ? t.words['#text'] || '' : t.words;
+             if (isSectionWord(text)) isSection = true;
+          }
           
-          if (text) {
+          if (text && isSection) {
             // Found a section marker
             if (currentSection && currentSection.sectionName !== text.trim()) {
               currentSection.measureEnd = mNum - 1;
@@ -156,7 +180,7 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
       const harmonies = toArray(m.harmony);
       if (harmonies.length > 0) {
         const chordSymbols = harmonies.map(normalizeChord);
-        // Only push if we haven't pushed for this measure (since multiple parts might have the same chords)
+        // Only push if we haven't pushed for this measure
         if (!harmony.find(h => h.measure === mNum)) {
            harmony.push({ measure: mNum, chordSymbols });
         }
@@ -170,50 +194,49 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
   }
 
   let totalQuarterNotes = 0;
+  let totalDurationSeconds = 0;
+  let currentBpmForDuration = tempoBpm || 120; // fallback if no tempo provided
+
+  const melody: SongDNA['melody'] = [];
+  const lyricsSyllables: string[] = [];
+  let assembledLyric = '';
+  let highestMidi = -1;
+  let lowestMidi = 999;
+  
   const measures = toArray(selectedPart.measure);
   let currentMeasure = 0;
   
   for (const measure of measures) {
     currentMeasure = parseInt(measure['@_number']) || currentMeasure + 1;
-    const voiceTimes: Record<string, number> = {};
+    
+    // Update current BPM if there is a change at this measure
+    const tc = tempoChanges.find(t => t.measure === currentMeasure);
+    if (tc) currentBpmForDuration = tc.bpm;
 
-    // For the selected part, we still read divisions, as they can be part-specific.
     const attributesList = toArray(measure.attributes);
     for (const attr of attributesList) {
       if (attr.divisions) divisions = parseInt(attr.divisions);
     }
 
-    const directions = toArray(measure.direction);
-    for (const dir of directions) {
-      const sound = dir.sound;
-      if (sound && sound['@_tempo']) {
-        if (!tempoBpm) tempoBpm = parseInt(sound['@_tempo']);
-      }
-    }
-
-    const backups = toArray(measure.backup);
-    const forwards = toArray(measure.forward);
-    // Note: fast-xml-parser without preserveOrder groups elements by tag name.
-    // It loses interleaving of notes and backups. Since we process all notes sequentially, 
-    // a global backup/forward within a measure is tricky without order. 
-    // Usually, backup separates voices. Because we track voiceTimes[v] per voice, 
-    // parallel voices handle their own timing perfectly without needing the backup element!
-    // We only need backup/forward if there are multiple layers in the same voice, which is rare.
-    // But to satisfy the requirement "backup; forward nếu có":
-    // We will just do a simple fallback if they exist, but voice tracking is already superior.
+    const voiceCursor: Record<string, number> = {};
+    const previousNoteStart: Record<string, number> = {};
 
     const notes = toArray(measure.note);
-    let prevDuration = 0;
     
     for (const note of notes) {
       const v = note.voice || '1';
-      if (voiceTimes[v] === undefined) voiceTimes[v] = 0;
+      if (voiceCursor[v] === undefined) voiceCursor[v] = 0;
+      if (previousNoteStart[v] === undefined) previousNoteStart[v] = 0;
 
       const dur = parseInt(note.duration || '0');
-      let isChord = note.chord !== undefined;
+      const isChord = note.chord !== undefined;
 
+      let start = voiceCursor[v];
       if (isChord) {
-        voiceTimes[v] -= prevDuration;
+        start = previousNoteStart[v];
+      } else {
+        previousNoteStart[v] = start;
+        voiceCursor[v] += dur;
       }
 
       if (note.pitch) {
@@ -233,19 +256,12 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
             octave: parseInt(oct),
             midi,
             duration: dur,
-            beatPosition: voiceTimes[v],
+            beatPosition: start,
             measure: currentMeasure
           });
           if (midi > highestMidi) highestMidi = midi;
           if (midi < lowestMidi) lowestMidi = midi;
         }
-      }
-
-      voiceTimes[v] += dur;
-      prevDuration = dur;
-      
-      if (!isChord && (note.pitch || note.rest !== undefined)) {
-         totalQuarterNotes += dur / divisions;
       }
 
       const lyric = note.lyric;
@@ -262,6 +278,18 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
         }
       }
     }
+
+    // Measure duration is the max cursor among voices
+    let maxCursor = 0;
+    for (const v in voiceCursor) {
+       if (voiceCursor[v] > maxCursor) maxCursor = voiceCursor[v];
+    }
+    const measureQuarterNotes = maxCursor / divisions;
+    totalQuarterNotes += measureQuarterNotes;
+    
+    // Duration in seconds for this measure
+    const quartersPerSecond = currentBpmForDuration / 60;
+    totalDurationSeconds += measureQuarterNotes / quartersPerSecond;
   }
 
   const majorKeys: Record<string, string> = {
@@ -312,13 +340,18 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
   const cadenceNotes = pitchSequence.slice(-3);
   const rhythmicPattern = melody.map(m => m.duration / divisions);
 
-  let approximateDuration = undefined;
-  if (tempoBpm && totalQuarterNotes > 0) {
-    approximateDuration = totalQuarterNotes / (tempoBpm / 60);
+  let chorusMotif: string[] | undefined;
+  const chorusSection = structure.find(s => s.sectionName.toLowerCase().includes('chorus') || s.sectionName.toLowerCase().includes('điệp khúc'));
+  if (chorusSection) {
+     const chorusNotes = melody.filter(m => m.measure >= chorusSection.measureStart && m.measure <= chorusSection.measureEnd);
+     if (chorusNotes.length > 0) {
+        chorusMotif = chorusNotes.slice(0, 5).map(n => n.pitch);
+     }
   }
 
   const fingerprint: MelodyFingerprint = {
     openingMotif,
+    chorusMotif,
     pitchSequence,
     midiSequence,
     intervals,
@@ -332,14 +365,16 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
 
   return {
     identity,
-    selectedMelodyPartId: selectedPartId,
+    selectedMelodyPartId,
     musical: {
       key,
       mode: keyMode,
       tempoBpm,
+      tempoChanges,
       timeSignature,
       divisions,
-      approximateDuration
+      approximateDuration: totalDurationSeconds > 0 ? totalDurationSeconds : undefined,
+      timingConfidence
     },
     vocal,
     structure,
