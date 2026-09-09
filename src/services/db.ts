@@ -5,8 +5,6 @@ import { AppSettings, UserProfile } from '../types';
 const DEFAULT_SETTINGS: AppSettings = {
   userName: 'Người dùng',
   userRole: 'Composer',
-  apiKey: '',
-  model: 'gemini-3.1-pro-preview',
   temperature: 0.7,
 };
 

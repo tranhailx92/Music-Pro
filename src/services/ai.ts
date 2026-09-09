@@ -1,6 +1,6 @@
 import { settingsService } from './settings';
 
-export const generateWithAI = async (prompt: string, systemInstruction?: string, temperature?: number) => {
+export const generateWithAI = async (prompt: string, systemInstruction?: string, temperature?: number, useFallbackModel?: boolean) => {
   const settings = settingsService.getSettings();
   
   const response = await fetch('/api/generate', {
@@ -10,8 +10,7 @@ export const generateWithAI = async (prompt: string, systemInstruction?: string,
       prompt, 
       systemInstruction, 
       temperature: temperature ?? settings.temperature,
-      customApiKey: settings.apiKey,
-      customModel: settings.model
+      useFallbackModel
     })
   });
 

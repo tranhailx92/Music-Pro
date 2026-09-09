@@ -42,7 +42,5 @@ export interface UserProfile {
 export interface AppSettings {
   userName: string;
   userRole: string;
-  apiKey: string;
-  model: string;
   temperature: number;
 }

@@ -37,7 +37,7 @@ ${blueprint.lyrics.exactLyrics ? blueprint.lyrics.exactLyrics : '(Không có l�
   return brief;
 }
 
-export function buildLyriaPromptPreview(blueprint: ProductionBlueprint): string {
+export function buildLyriaPrompt(blueprint: ProductionBlueprint): string {
   const m = blueprint.musical;
   const style = blueprint.identity.genre;
   const tempo = m.tempo ? `${m.tempo} BPM` : 'mid-tempo';
@@ -46,11 +46,13 @@ export function buildLyriaPromptPreview(blueprint: ProductionBlueprint): string 
   const hook = blueprint.melodyIdentity.chorusHook ? `Chorus Hook: ${blueprint.melodyIdentity.chorusHook}.` : '';
   const duration = m.targetDuration ? `Target duration: ~${Math.round(m.targetDuration)}s.` : '';
   
-  return `Generate a high-fidelity full audio interpretation in the style of ${style}. ${tempo} ${key}. Instrumentation: ${instruments}. 
+  return `Preserve the identity of the supplied composition. Prioritize exact lyrics, section structure, harmonic direction, and especially the supplied melodic motifs/hook. Do not replace the composition with an unrelated melody.
+Generate a high-fidelity full audio interpretation in the style of ${style}. ${tempo} ${key}. Instrumentation: ${instruments}. 
 Vocal range constraint: ${m.vocalRange || 'standard'}. ${duration}
 Structure: ${blueprint.structure.map(s => s.name).join(' -> ')}.
 Strictly preserve the following melody opening motif: ${blueprint.melodyIdentity.mainMotif || 'N/A'}. ${hook}
 Harmonic progression: ${blueprint.harmony.map(h => `[${h.section}] ${h.progression.join(' ')}`).join(', ') || 'N/A'}.
+${blueprint.arrangement.productionDirection ? `Production notes: ${blueprint.arrangement.productionDirection}` : ''}
 Lyrics to follow exactly:
 ${blueprint.lyrics.exactLyrics || '(Instrumental)'}`;
 }

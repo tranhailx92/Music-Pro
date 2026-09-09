@@ -84,35 +84,7 @@ export const SettingsView: React.FC = () => {
             <h2>Cấu hình AI</h2>
           </div>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Gemini API Key (Tùy chọn)</label>
-              <input 
-                type="password" 
-                value={settings.apiKey}
-                onChange={(e) => updateSetting('apiKey', e.target.value)}
-                placeholder="Để trống để dùng API Key mặc định của hệ thống..."
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 font-mono"
-              />
-              <p className="mt-2 text-xs text-zinc-500 italic">Lưu ý: API Key của bạn được lưu an toàn trên đám mây.</p>
-            </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
-                  <Cpu className="w-4 h-4" />
-                  Mô hình (Model)
-                </label>
-                <select 
-                  value={settings.model}
-                  onChange={(e) => updateSetting('model', e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Preview)</option>
-                  <option value="gemini-3.8-flash">Gemini 3.8 Flash (Latest)</option>
-                  <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
-                  <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                </select>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
                   <Sliders className="w-4 h-4" />

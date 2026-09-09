@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Sparkles, FileMusic, Loader2, ArrowRight, Save, Music, Download, Copy, Headphones } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { XMLValidator } from 'fast-xml-parser';
+import { Sparkles, FileMusic, Loader2, ArrowRight, Save, Music, Download, Copy, Headphones, Play, Pause } from 'lucide-react';
 import { generateWithAI } from '../services/ai';
 import { knowledgeService } from '../services/knowledge';
 import { runsService } from '../services/runs';
@@ -27,7 +28,54 @@ export const ComposeView: React.FC = () => {
   // AI Audio Production State
   const [blueprintData, setBlueprintData] = useState<any>(null);
   const [generatingBlueprint, setGeneratingBlueprint] = useState(false);
-  
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<{ lyriaEnabled: boolean; textModel: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/music/capabilities')
+      .then(res => res.json())
+      .then(setCapabilities)
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
+  const handleGenerateAudio = async () => {
+    if (!finalXml) return;
+    setGeneratingAudio(true);
+    setAudioUrl(null);
+    try {
+      const res = await fetch('/api/music/generate-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ musicXml: finalXml, style, idea, lyrics: leadSheetXml }) // sending leadSheetXml as lyrics if needed, but endpoint can rebuild it
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || 'Lỗi tạo audio');
+      }
+      
+      const binaryString = atob(data.audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: data.mimeType || 'audio/mpeg' });
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+      addToast('Tạo bản thu AI thành công!');
+    } catch (e: any) {
+      addToast('Lỗi: ' + e.message);
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
   const handleGenerateBlueprint = async () => {
     setGeneratingBlueprint(true);
     try {
@@ -116,10 +164,19 @@ export const ComposeView: React.FC = () => {
     setLoading(true);
     try {
       const systemInst = "You are a master composer. Output ONLY valid MusicXML 4.0 containing a lead sheet (melody, lyrics, chords). Do not use markdown blocks, just raw XML.";
-      const res = await generateWithAI(composePrompt, systemInst);
-      
-      const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-      const xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
+      let xml = '';
+      try {
+        const res = await generateWithAI(composePrompt, systemInst);
+        const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+        xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
+        if (XMLValidator.validate(xml) !== true) throw new Error('Invalid XML');
+      } catch (err) {
+        addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
+        const res2 = await generateWithAI(composePrompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
+        const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+        xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
+        if (XMLValidator.validate(xml) !== true) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+      }
       
       setLeadSheetXml(xml);
       setStep(4);
@@ -136,10 +193,20 @@ export const ComposeView: React.FC = () => {
     try {
       const systemInst = "You are an expert arranger. Output ONLY valid MusicXML 4.0 containing a full arrangement based on the provided lead sheet. Do not use markdown blocks, just raw XML.";
       const prompt = `Arrange Prompt:\n${arrangePrompt}\n\nLead Sheet Context:\n${leadSheetXml}`;
-      const res = await generateWithAI(prompt, systemInst);
       
-      const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-      const xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
+      let xml = '';
+      try {
+        const res = await generateWithAI(prompt, systemInst);
+        const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+        xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
+        if (XMLValidator.validate(xml) !== true) throw new Error('Invalid XML');
+      } catch (err) {
+        addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
+        const res2 = await generateWithAI(prompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
+        const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+        xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
+        if (XMLValidator.validate(xml) !== true) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+      }
       
       setFinalXml(xml);
       
@@ -366,7 +433,7 @@ export const ComposeView: React.FC = () => {
                   Tạo bản thu AI
                 </h3>
                 <p className="text-sm text-zinc-400 mb-6">
-                  Sử dụng bản ký âm đã hoàn thành để tạo bản nhạc audio thực tế qua AI.
+                  Biến bản nhạc đã hoàn thành thành một bản thu AI. Bản thu sẽ cố gắng bám sát bản sáng tác nhưng có thể có khác biệt.
                 </p>
 
                 {!blueprintData ? (
@@ -400,21 +467,46 @@ export const ComposeView: React.FC = () => {
                       </div>
                     </div>
                     
-                    <div className="flex gap-4">
-                      <button
-                        onClick={handleCopyGeminiBrief}
-                        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
-                      >
-                        <Copy className="w-4 h-4" />
-                        Sao chép cho Gemini
-                      </button>
-                      <button
-                        disabled
-                        className="flex items-center gap-2 bg-indigo-600/50 text-white/50 px-5 py-2.5 rounded-lg font-bold text-sm cursor-not-allowed"
-                      >
-                        <Headphones className="w-4 h-4" />
-                        Tạo bằng AI - Sắp có
-                      </button>
+                    <div className="flex flex-col gap-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={handleCopyGeminiBrief}
+                          className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
+                        >
+                          <Copy className="w-4 h-4" />
+                          Sao chép cho Gemini
+                        </button>
+                        <button
+                          onClick={handleGenerateAudio}
+                          disabled={generatingAudio || !capabilities?.lyriaEnabled}
+                          title={!capabilities?.lyriaEnabled ? "Chưa bật trong môi trường DEV – Lyria yêu cầu billing." : ""}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-colors ${capabilities?.lyriaEnabled ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-indigo-600/50 text-white/50 cursor-not-allowed'}`}
+                        >
+                          {generatingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Headphones className="w-4 h-4" />}
+                          Tạo bản thu AI
+                        </button>
+                      </div>
+                      {!capabilities?.lyriaEnabled && (
+                        <p className="text-sm text-yellow-500 mt-2">Chưa bật trong môi trường DEV – Lyria yêu cầu billing.</p>
+                      )}
+                      
+                      {audioUrl && (
+                        <div className="mt-4 p-4 bg-black/40 rounded-xl border border-indigo-500/30 flex flex-col gap-4">
+                           <h4 className="font-bold text-white flex items-center gap-2">
+                             <Play className="w-4 h-4 text-emerald-400" />
+                             Bản thu AI đã sẵn sàng
+                           </h4>
+                           <audio controls src={audioUrl} className="w-full" />
+                           <a 
+                             href={audioUrl} 
+                             download={`${idea ? idea.substring(0,20).replace(/\s+/g,'_') : 'Composition'}_AI_recording.mp3`}
+                             className="flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg font-bold text-sm"
+                           >
+                             <Download className="w-4 h-4" />
+                             Tải MP3
+                           </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
