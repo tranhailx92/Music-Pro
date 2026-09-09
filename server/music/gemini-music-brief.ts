@@ -3,7 +3,7 @@ import { ProductionBlueprint } from './types';
 export function buildGeminiMusicBrief(blueprint: ProductionBlueprint): string {
   const m = blueprint.musical;
   
-  let brief = `Hãy tạo một bản thu âm nhạc (audio) dựa trên bản master MusicXML đã cung cấp. Bản thu AI này là một bản interpretation, nhưng ưu tiên cao nhất là giữ nhận diện của bài hát; không sáng tác thành một bài khác.
+  let brief = `Hãy tạo một bản thu dựa trên các thông tin âm nhạc dưới đây, được trích xuất từ bản master MusicXML. Bản thu AI này là một bản interpretation, nhưng ưu tiên cao nhất là giữ nhận diện của bài hát; không sáng tác thành một bài khác.
 
 THÔNG TIN ÂM NHẠC
 - Giọng (Key/Mode): ${m.key || 'Không xác định'} ${m.mode || ''}
@@ -39,20 +39,35 @@ ${blueprint.lyrics.exactLyrics ? blueprint.lyrics.exactLyrics : '(Không có l�
 
 export function buildLyriaPrompt(blueprint: ProductionBlueprint): string {
   const m = blueprint.musical;
-  const style = blueprint.identity.genre;
-  const tempo = m.tempo ? `${m.tempo} BPM` : 'mid-tempo';
-  const key = m.key ? `in ${m.key}` : '';
-  const instruments = blueprint.arrangement.instruments.join(', ') || 'standard band';
-  const hook = blueprint.melodyIdentity.chorusHook ? `Chorus Hook: ${blueprint.melodyIdentity.chorusHook}.` : '';
-  const duration = m.targetDuration ? `Target duration: ~${Math.round(m.targetDuration)}s.` : '';
+  const style = blueprint.identity.genre || 'pop';
   
-  return `Preserve the identity of the supplied composition. Prioritize exact lyrics, section structure, harmonic direction, and especially the supplied melodic motifs/hook. Do not replace the composition with an unrelated melody.
-Generate a high-fidelity full audio interpretation in the style of ${style}. ${tempo} ${key}. Instrumentation: ${instruments}. 
-Vocal range constraint: ${m.vocalRange || 'standard'}. ${duration}
-Structure: ${blueprint.structure.map(s => s.name).join(' -> ')}.
-Strictly preserve the following melody opening motif: ${blueprint.melodyIdentity.mainMotif || 'N/A'}. ${hook}
-Harmonic progression: ${blueprint.harmony.map(h => `[${h.section}] ${h.progression.join(' ')}`).join(', ') || 'N/A'}.
-${blueprint.arrangement.productionDirection ? `Production notes: ${blueprint.arrangement.productionDirection}` : ''}
-Lyrics to follow exactly:
-${blueprint.lyrics.exactLyrics || '(Instrumental)'}`;
+  let p = `Strongly preserve the supplied melodic identity, especially the opening motif and chorus hook. Keep the rhythmic contour and phrase cadences as close as possible while allowing natural performance interpretation.\n`;
+  p += `Generate a high-fidelity full audio interpretation in the style of ${style}.\n`;
+  
+  if (m.tempo) p += `BPM: ${m.tempo}.\n`;
+  if (m.key) p += `Key: ${m.key} ${m.mode || ''}.\n`;
+  if (m.meter) p += `Meter: ${m.meter}.\n`;
+  if (m.vocalRange) p += `Vocal range: ${m.vocalRange}.\n`;
+  if (m.targetDuration) p += `Target duration: ~${Math.round(m.targetDuration)}s.\n`;
+  
+  if (blueprint.arrangement.instruments?.length > 0) p += `Instrumentation: ${blueprint.arrangement.instruments.join(', ')}.\n`;
+  if (blueprint.arrangement.productionDirection) p += `Production notes: ${blueprint.arrangement.productionDirection}\n`;
+  
+  if (blueprint.structure?.length > 0) {
+    p += `Structure: ${blueprint.structure.map(s => s.name).join(' -> ')}.\n`;
+  }
+  
+  if (blueprint.melodyIdentity.mainMotif) p += `Opening melodic motif: ${blueprint.melodyIdentity.mainMotif}\n`;
+  if (blueprint.melodyIdentity.chorusHook) p += `Chorus hook: ${blueprint.melodyIdentity.chorusHook}\n`;
+  if (blueprint.melodyIdentity.normalizedRhythm?.length > 0) p += `Rhythmic fingerprint: ${blueprint.melodyIdentity.normalizedRhythm.join(', ')}\n`;
+  if (blueprint.melodyIdentity.contour) p += `Melodic contour: ${blueprint.melodyIdentity.contour}\n`;
+  if (blueprint.melodyIdentity.cadences) p += `Phrase cadence: ${blueprint.melodyIdentity.cadences}\n`;
+  
+  if (blueprint.harmony?.length > 0) {
+    p += `Harmonic progression:\n${blueprint.harmony.map(h => `- ${h.section}: ${h.progression.join(' | ')}`).join('\n')}\n`;
+  }
+  
+  p += `\nLyrics to follow exactly:\n${blueprint.lyrics.exactLyrics || '(Instrumental)'}`;
+  
+  return p;
 }

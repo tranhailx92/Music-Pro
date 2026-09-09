@@ -53,7 +53,7 @@ export const ComposeView: React.FC = () => {
       const res = await fetch('/api/music/generate-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ musicXml: finalXml, style, idea, lyrics: leadSheetXml }) // sending leadSheetXml as lyrics if needed, but endpoint can rebuild it
+        body: JSON.stringify({ musicXml: finalXml, style, idea })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -169,13 +169,19 @@ export const ComposeView: React.FC = () => {
         const res = await generateWithAI(composePrompt, systemInst);
         const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
         xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
-        if (XMLValidator.validate(xml) !== true) throw new Error('Invalid XML');
-      } catch (err) {
-        addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
-        const res2 = await generateWithAI(composePrompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
-        const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-        xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
-        if (XMLValidator.validate(xml) !== true) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+        const isValid = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
+        if (!isValid) throw new Error('XMLValidationFailed');
+      } catch (err: any) {
+        if (err.message === 'XMLValidationFailed') {
+          addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
+          const res2 = await generateWithAI(composePrompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
+          const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+          xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
+          const isValid2 = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
+          if (!isValid2) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+        } else {
+          throw err;
+        }
       }
       
       setLeadSheetXml(xml);
@@ -199,13 +205,19 @@ export const ComposeView: React.FC = () => {
         const res = await generateWithAI(prompt, systemInst);
         const xmlMatch = res.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
         xml = xmlMatch ? xmlMatch[0] : res.replace(/```xml/g, '').replace(/```/g, '').trim();
-        if (XMLValidator.validate(xml) !== true) throw new Error('Invalid XML');
-      } catch (err) {
-        addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
-        const res2 = await generateWithAI(prompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
-        const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
-        xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
-        if (XMLValidator.validate(xml) !== true) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+        const isValid = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
+        if (!isValid) throw new Error('XMLValidationFailed');
+      } catch (err: any) {
+        if (err.message === 'XMLValidationFailed') {
+          addToast('Lần 1 thất bại (XML không hợp lệ). Thử lại với model dự phòng...');
+          const res2 = await generateWithAI(prompt + '\n\nMake sure to output valid XML.', systemInst, undefined, true);
+          const xmlMatch = res2.match(/<score-partwise[\s\S]*<\/score-partwise>/i);
+          xml = xmlMatch ? xmlMatch[0] : res2.replace(/```xml/g, '').replace(/```/g, '').trim();
+          const isValid2 = XMLValidator.validate(xml) === true && xml.includes('<score-partwise') && xml.includes('</score-partwise>');
+          if (!isValid2) throw new Error('XML vẫn không hợp lệ sau khi thử lại');
+        } else {
+          throw err;
+        }
       }
       
       setFinalXml(xml);
