@@ -23,14 +23,14 @@ async function startServer() {
 
   app.post("/api/music/blueprint", (req, res) => {
     try {
-      const { musicXml, style, language, mood, genre, sourceRunId } = req.body;
+      const { musicXml, style, language, mood, genre, sourceRunId, lyrics, arrangementNotes, idea } = req.body;
       
       if (!musicXml || typeof musicXml !== 'string') {
-        return res.status(400).json({ error: "Missing or invalid musicXml" });
+        return res.status(400).json({ error: { code: 'MISSING_SCORE', message: "Missing or invalid musicXml" } });
       }
 
       const songDNA = extractSongDNA(musicXml, sourceRunId);
-      const blueprint = buildProductionBlueprint(songDNA, { style, language, mood, genre });
+      const blueprint = buildProductionBlueprint(songDNA, { style, language, mood, genre, lyrics, arrangementNotes, idea });
       const geminiBrief = buildGeminiMusicBrief(blueprint);
       const lyriaPromptPreview = buildLyriaPromptPreview(blueprint);
 
@@ -42,7 +42,8 @@ async function startServer() {
       });
     } catch (error: any) {
       console.error("Blueprint generation error:", error);
-      res.status(400).json({ error: error.message || "Failed to parse MusicXML and generate blueprint" });
+      const code = error.code || 'BLUEPRINT_FAILED';
+      res.status(400).json({ error: { code, message: error.message || "Failed to parse MusicXML and generate blueprint" } });
     }
   });
 

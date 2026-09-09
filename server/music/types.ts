@@ -3,6 +3,7 @@ export interface SongDNA {
     title?: string;
     sourceRunId?: string;
   };
+  selectedMelodyPartId?: string;
   musical: {
     key?: string;
     mode?: string;
@@ -61,7 +62,7 @@ export interface MelodyFingerprint {
   cadenceNotes: string[];
   highestNote?: string;
   lowestNote?: string;
-  approximateRhythmicPattern: string;
+  approximateRhythmicPattern: number[];
 }
 
 export interface ProductionBlueprint {
@@ -88,12 +89,13 @@ export interface ProductionBlueprint {
     cadences: string;
     contour: string;
     constraints: string;
+    normalizedRhythm?: number[];
   };
   arrangement: {
     instruments: string[];
     roles: Record<string, string>;
-    energyCurve: string;
-    productionDirection: string;
+    energyCurve?: string;
+    productionDirection?: string;
   };
   lyrics: {
     exactLyrics: string;
