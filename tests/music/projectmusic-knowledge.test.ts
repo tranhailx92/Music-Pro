@@ -1,4 +1,4 @@
-import { getCatalog, getForAi, getDocsForStep, getStyleCard } from "../../server/projectmusic/knowledge";
+import { getCatalog, getForAi, getCoreDocsForStep, getDocsByRefs, getStyleCard, getCatalogCandidates } from "../../server/projectmusic/knowledge";
 
 console.log("--- Testing ProjectMusic Knowledge Loader ---");
 
@@ -16,12 +16,12 @@ if (!forAi || !forAi.includes("ProjectMusic00")) {
 }
 console.log("✅ Loaded for-ai.md");
 
-// Test 3: getDocsForStep(1)
-const step1Docs = getDocsForStep(1);
-if (!step1Docs.includes("PIPE.STEP-01") || !step1Docs.includes("META.STANDARDS")) {
+// Test 3: getCoreDocsForStep(1)
+const step1Docs = getCoreDocsForStep(1);
+if (!step1Docs.includes("--- DOCUMENT: PIPE.STEP-01") || !step1Docs.includes("--- DOCUMENT: META.STANDARDS")) {
   throw new Error("Step 1 docs missing required core docs");
 }
-console.log("✅ Step 1 docs loaded correctly");
+console.log("✅ Step 1 core docs loaded correctly");
 
 // Test 4: getStyleCard
 const styleCard = getStyleCard("STYLE.VN.VPOP-BALLAD");
@@ -30,11 +30,19 @@ if (!styleCard || !styleCard.includes("V-Pop Ballad")) {
 }
 console.log("✅ Style card loaded correctly");
 
-// Test 5: unrelated docs
-const step3Docs = getDocsForStep(3);
-if (step3Docs.includes("--- DOCUMENT: PIPE.STEP-04")) {
-  throw new Error("Unrelated step 4 docs leaked into step 3");
+// Test 5: getDocsByRefs
+const docRefs = ["KNOW.MELODY.CONTOUR", "KNOW.HARMONY.CHORD-SUBSTITUTION"];
+const refDocs = getDocsByRefs(docRefs);
+if (!refDocs.includes("--- DOCUMENT: KNOW.MELODY.CONTOUR") || !refDocs.includes("--- DOCUMENT: KNOW.HARMONY.CHORD-SUBSTITUTION")) {
+  throw new Error("getDocsByRefs failed");
 }
-console.log("✅ Unrelated docs filter working");
+console.log("✅ getDocsByRefs working");
+
+// Test 6: getCatalogCandidates
+const candidates = getCatalogCandidates(2);
+if (candidates.length === 0 || !candidates[0].id) {
+  throw new Error("getCatalogCandidates empty or invalid");
+}
+console.log("✅ getCatalogCandidates working");
 
 console.log("🚀 ALL KNOWLEDGE LOADER TESTS PASSED");

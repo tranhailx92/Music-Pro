@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import * as yaml from "js-yaml";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface CatalogPage {
   id: string;
@@ -16,25 +20,40 @@ export interface Catalog {
   pages: CatalogPage[];
 }
 
-const BASE_DIR = path.join(process.cwd(), "docs/m-guide");
+const resolveKnowledgeDir = () => {
+  if (process.env.PROJECTMUSIC_DIR) return process.env.PROJECTMUSIC_DIR;
+  
+  const possiblePaths = [
+    path.join(process.cwd(), "docs/m-guide"),
+    path.join(process.cwd(), "dist/docs/m-guide"),
+    path.join(__dirname, "../docs/m-guide"),
+    path.join(__dirname, "../../docs/m-guide")
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(path.join(p, "catalog.yml"))) return p;
+  }
+  return path.join(process.cwd(), "docs/m-guide");
+};
+
+const BASE_DIR = resolveKnowledgeDir();
 
 export function getCatalog(): Catalog {
   const catalogPath = path.join(BASE_DIR, "catalog.yml");
+  if (!fs.existsSync(catalogPath)) {
+    throw new Error(`Catalog not found at ${catalogPath}`);
+  }
   const content = fs.readFileSync(catalogPath, "utf8");
   return yaml.load(content) as Catalog;
 }
 
 export function getForAi(): string {
   const forAiPath = path.join(BASE_DIR, "for-ai.md");
+  if (!fs.existsSync(forAiPath)) return "";
   return fs.readFileSync(forAiPath, "utf8");
 }
 
 export function getKnowledgeDoc(docPath: string): string {
-  // Ensure the path is relative to the repo root as defined in catalog.yml
-  // The catalog.yml paths are like "docs/m-guide/meta/purpose.md"
-  // But our BASE_DIR is already process.cwd()/docs/m-guide
-  // So we need to handle the path carefully.
-  
   const relativePath = docPath.startsWith("docs/m-guide/") 
     ? docPath.replace("docs/m-guide/", "") 
     : docPath;
@@ -46,35 +65,60 @@ export function getKnowledgeDoc(docPath: string): string {
   return fs.readFileSync(fullPath, "utf8");
 }
 
-export function getDocsForStep(step: number, docRefs: string[] = []): string {
+export function getCoreDocsForStep(step: number): string {
   const catalog = getCatalog();
-  const docs: string[] = [];
+  const coreIds = ["META.STANDARDS", "PIPE.OVERVIEW", `PIPE.STEP-0${step}`];
   
-  // Always include meta/standards.md and pipeline/overview.md for context
-  const coreDocIds = ["META.STANDARDS", "PIPE.OVERVIEW"];
-  
-  // Filter pages that serve this step OR are explicitly requested via docRefs
-  const pagesToLoad = catalog.pages.filter(p => 
-    p["serves-steps"].includes(step) || docRefs.includes(p.id)
-  );
-  
-  // Add step-specific pipeline doc
-  const stepPipelineDoc = `PIPE.STEP-0${step}`;
-  if (!pagesToLoad.some(p => p.id === stepPipelineDoc)) {
-    const pDoc = catalog.pages.find(p => p.id === stepPipelineDoc);
-    if (pDoc) pagesToLoad.push(pDoc);
-  }
+  // Specific core docs per step if needed
+  if (step === 3) coreIds.push("KNOW.MUSICXML.RULES");
+  if (step === 4) coreIds.push("KNOW.MUSICXML.RULES");
 
-  for (const page of pagesToLoad) {
-    try {
-      const content = getKnowledgeDoc(page.path);
-      docs.push(`--- DOCUMENT: ${page.id} (${page.path}) ---\n${content}\n`);
-    } catch (e) {
-      console.warn(`Failed to load doc ${page.id}:`, e);
+  const docs: string[] = [];
+  for (const id of coreIds) {
+    const page = catalog.pages.find(p => p.id === id);
+    if (page) {
+      try {
+        const content = getKnowledgeDoc(page.path);
+        docs.push(`--- DOCUMENT: ${page.id} ---\n${content}`);
+      } catch (e) {
+        console.warn(`Failed to load core doc ${id}:`, e);
+      }
     }
   }
-  
   return docs.join("\n\n");
+}
+
+export function getDocsByRefs(docRefs: string[]): string {
+  const catalog = getCatalog();
+  const docs: string[] = [];
+  const uniqueRefs = [...new Set(docRefs)];
+
+  for (const id of uniqueRefs) {
+    const page = catalog.pages.find(p => p.id === id);
+    if (page) {
+      try {
+        const content = getKnowledgeDoc(page.path);
+        docs.push(`--- DOCUMENT: ${page.id} ---\n${content}`);
+      } catch (e) {
+        console.warn(`Failed to load referenced doc ${id}:`, e);
+      }
+    }
+  }
+  return docs.join("\n\n");
+}
+
+export function getCatalogCandidates(step: number) {
+  const catalog = getCatalog();
+  // Return only metadata for Step 2 selection
+  // Filter for relevant steps (usually 3 and 4)
+  return catalog.pages
+    .filter(p => p["serves-steps"].some(s => s === 3 || s === 4))
+    .map(p => ({
+      id: p.id,
+      tags: p.tags,
+      servesSteps: p["serves-steps"],
+      summary: p.summary
+    }));
 }
 
 export function getStyleCard(styleId: string): string | null {
@@ -82,4 +126,9 @@ export function getStyleCard(styleId: string): string | null {
   const page = catalog.pages.find(p => p.id === styleId && p.tags.includes("style"));
   if (!page) return null;
   return getKnowledgeDoc(page.path);
+}
+
+// Deprecated in favor of selective loading
+export function getDocsForStep(step: number, docRefs: string[] = []): string {
+  return `${getCoreDocsForStep(step)}\n\n${getDocsByRefs(docRefs)}`;
 }

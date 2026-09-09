@@ -1,14 +1,4 @@
-// This test validates the logic used in composer.ts for MusicXML extraction and validation
-import { XMLValidator } from 'fast-xml-parser';
-
-function validateMusicXML(xml: string) {
-    const isValidStructure = xml.includes('<score-partwise') && 
-                             xml.includes('</score-partwise>') && 
-                             xml.includes('<part-list>') && 
-                             xml.includes('<measure');
-    const isXmlParsable = XMLValidator.validate(xml) === true;
-    return isValidStructure && isXmlParsable;
-}
+import { validateMusicXML, validateLeadSheet } from "../../server/music/musicxml-validator";
 
 console.log("--- Testing MusicXML Validation Logic ---");
 
@@ -36,21 +26,29 @@ const validXML = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
-if (!validateMusicXML(validXML)) {
+if (!validateMusicXML(validXML).isValid) {
     throw new Error("Valid XML failed validation");
 }
 console.log("✅ Valid XML passed");
 
 const invalidXML1 = "<score-partwise>missing close tag";
-if (validateMusicXML(invalidXML1)) {
+if (validateMusicXML(invalidXML1).isValid) {
     throw new Error("Invalid XML (missing close) passed validation");
 }
 console.log("✅ Invalid XML (missing close) caught");
 
 const invalidXML2 = "<score-partwise><part-list></part-list></score-partwise>"; // missing part/measure
-if (validateMusicXML(invalidXML2)) {
-    throw new Error("Invalid XML (missing measure) passed validation");
+if (validateMusicXML(invalidXML2).isValid) {
+    throw new Error("Invalid XML (missing structure) passed validation");
 }
 console.log("✅ Invalid XML (missing structure) caught");
+
+// Test Lead Sheet lyrics check
+const leadSheetNoLyrics = validXML;
+const vocalRequest = { vocalDirection: "Male Singer" };
+if (validateLeadSheet(leadSheetNoLyrics, vocalRequest).isValid) {
+    throw new Error("Lead sheet without lyrics passed for vocal song");
+}
+console.log("✅ Lead sheet lyrics check caught missing lyrics");
 
 console.log("🚀 ALL MUSICXML VALIDATION TESTS PASSED");

@@ -27,6 +27,8 @@ export const ComposeView: React.FC = () => {
   
   const [docRefs, setDocRefs] = useState<string[]>([]);
   const [metaPlan, setMetaPlan] = useState('');
+  const [planSummary, setPlanSummary] = useState('');
+  const [songRequest, setSongRequest] = useState<any>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // AI Audio Production State
@@ -134,7 +136,7 @@ export const ComposeView: React.FC = () => {
       const res = await fetch('/api/compose/prepare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idea, style })
+        body: JSON.stringify({ idea, styleId: style })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi chuẩn bị sáng tác');
@@ -142,7 +144,9 @@ export const ComposeView: React.FC = () => {
       setComposePrompt(data.composePrompt);
       setArrangePrompt(data.arrangePrompt);
       setDocRefs(data.docRefs);
-      setMetaPlan(data.planSummary);
+      setMetaPlan(data.metaPlan);
+      setPlanSummary(data.planSummary);
+      setSongRequest(data.songRequest);
       setStep(2);
       addToast('Đã hoàn thành bước Hiểu ý tưởng');
     } catch (e: any) {
@@ -162,7 +166,7 @@ export const ComposeView: React.FC = () => {
       const res = await fetch('/api/compose/lead-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ composePrompt, docRefs, metaPlan })
+        body: JSON.stringify({ composePrompt, docRefs, metaPlan, songRequest, styleId: style })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi tạo bản nhạc');
@@ -183,7 +187,7 @@ export const ComposeView: React.FC = () => {
       const res = await fetch('/api/compose/arrange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadSheetXml, arrangePrompt, docRefs })
+        body: JSON.stringify({ leadSheetXml, arrangePrompt, docRefs, songRequest, styleId: style })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi phối khí');
@@ -292,11 +296,23 @@ export const ComposeView: React.FC = () => {
             
             <div className="bg-black/30 border border-white/5 rounded-xl p-6">
               <h3 className="text-indigo-400 font-bold mb-3 uppercase text-xs tracking-widest">Tóm tắt phương án</h3>
-              <p className="text-zinc-200 leading-relaxed whitespace-pre-wrap">{metaPlan}</p>
+              <p className="text-zinc-200 leading-relaxed whitespace-pre-wrap">{planSummary}</p>
             </div>
 
             {showAdvanced && (
               <div className="space-y-4 animate-in fade-in duration-300">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Meta Plan</label>
+                  <pre className="w-full h-32 overflow-auto bg-black border border-white/10 rounded-lg p-2 text-[10px] font-mono text-zinc-400 whitespace-pre-wrap">
+                    {metaPlan}
+                  </pre>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Song Request</label>
+                  <pre className="w-full h-32 overflow-auto bg-black border border-white/10 rounded-lg p-2 text-[10px] font-mono text-zinc-400 whitespace-pre-wrap">
+                    {JSON.stringify(songRequest, null, 2)}
+                  </pre>
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Knowledge Refs</label>
                   <div className="flex flex-wrap gap-2">

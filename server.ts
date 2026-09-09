@@ -8,7 +8,19 @@ import { buildProductionBlueprint } from "./server/music/production-blueprint";
 import { buildGeminiMusicBrief, buildLyriaPrompt } from "./server/music/gemini-music-brief";
 import { prepareComposition, generateLeadSheet, generateArrangement } from "./server/music/composer";
 
+import { getCatalog } from "./server/projectmusic/knowledge";
+
 dotenv.config();
+
+function getStyleDisplayName(styleId: string): string {
+  try {
+    const catalog = getCatalog();
+    const page = catalog.pages.find(p => p.id === styleId);
+    return page ? page.summary.split(':')[0] : styleId;
+  } catch (e) {
+    return styleId;
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -38,7 +50,8 @@ async function startServer() {
       }
 
       const songDNA = extractSongDNA(musicXml, sourceRunId);
-      const blueprint = buildProductionBlueprint(songDNA, { style, language, mood, genre, lyrics, arrangementNotes, idea });
+      const mappedStyle = getStyleDisplayName(style);
+      const blueprint = buildProductionBlueprint(songDNA, { style: mappedStyle, language, mood, genre, lyrics, arrangementNotes, idea });
       const geminiBrief = buildGeminiMusicBrief(blueprint);
       const lyriaPromptPreview = buildLyriaPrompt(blueprint);
 
@@ -73,7 +86,8 @@ async function startServer() {
       }
 
       const songDNA = extractSongDNA(musicXml, sourceRunId);
-      const blueprint = buildProductionBlueprint(songDNA, { style, mood, genre, lyrics, arrangementNotes, idea });
+      const mappedStyle = getStyleDisplayName(style);
+      const blueprint = buildProductionBlueprint(songDNA, { style: mappedStyle, mood, genre, lyrics, arrangementNotes, idea });
       const lyriaPrompt = buildLyriaPrompt(blueprint);
 
       const apiKey = process.env.GEMINI_API_KEY;
@@ -87,7 +101,6 @@ async function startServer() {
       const interaction = await client.interactions.create({
         model,
         input: lyriaPrompt,
-        // @ts-ignore - Support for response_format depends on SDK version
         response_format: {
           type: "audio"
         }
@@ -119,9 +132,9 @@ async function startServer() {
 
   app.post("/api/compose/prepare", async (req, res) => {
     try {
-      const { idea, style } = req.body;
+      const { idea, styleId } = req.body;
       if (!idea) return res.status(400).json({ error: "Idea is required" });
-      const result = await prepareComposition(idea, style || "Pop Ballad");
+      const result = await prepareComposition(idea, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json(result);
     } catch (error: any) {
       console.error("Prepare error:", error);
@@ -131,9 +144,9 @@ async function startServer() {
 
   app.post("/api/compose/lead-sheet", async (req, res) => {
     try {
-      const { composePrompt, docRefs, metaPlan } = req.body;
+      const { composePrompt, docRefs, metaPlan, songRequest, styleId } = req.body;
       if (!composePrompt) return res.status(400).json({ error: "Compose prompt is required" });
-      const xml = await generateLeadSheet(composePrompt, docRefs || [], metaPlan || "");
+      const xml = await generateLeadSheet(composePrompt, docRefs || [], metaPlan || "", songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json({ xml });
     } catch (error: any) {
       console.error("Lead Sheet error:", error);
@@ -143,9 +156,9 @@ async function startServer() {
 
   app.post("/api/compose/arrange", async (req, res) => {
     try {
-      const { leadSheetXml, arrangePrompt, docRefs } = req.body;
+      const { leadSheetXml, arrangePrompt, docRefs, songRequest, styleId } = req.body;
       if (!leadSheetXml || !arrangePrompt) return res.status(400).json({ error: "Missing required fields" });
-      const xml = await generateArrangement(leadSheetXml, arrangePrompt, docRefs || []);
+      const xml = await generateArrangement(leadSheetXml, arrangePrompt, docRefs || [], songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json({ xml });
     } catch (error: any) {
       console.error("Arrange error:", error);

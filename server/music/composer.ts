@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import { getCatalog, getForAi, getDocsForStep, getStyleCard } from "../projectmusic/knowledge";
+import { GoogleGenAI, Type, GenerateContentParameters, GenerateContentResponse } from "@google/genai";
+import { getForAi, getCoreDocsForStep, getDocsByRefs, getCatalogCandidates, getStyleCard, getCatalog } from "../projectmusic/knowledge";
+import { validateLeadSheet, validateArrangement } from "./musicxml-validator";
 
 const ai = new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY,
@@ -13,51 +14,86 @@ const ai = new GoogleGenAI({
 const TEXT_MODEL = process.env.TEXT_MODEL || 'gemini-3.5-flash-lite';
 const FALLBACK_MODEL = process.env.TEXT_FALLBACK_MODEL || 'gemini-3.5-flash';
 
-export interface Step1Result {
-  songRequest: any;
-  metaPlan: string;
-}
+// Dependency Injection for testing
+export type GenerateFn = (params: GenerateContentParameters) => Promise<GenerateContentResponse>;
+
+const defaultGenerate: GenerateFn = (params) => ai.models.generateContent(params);
 
 export interface Step2Result {
+  songRequest: any;
+  metaPlan: string;
   composePrompt: string;
   arrangePrompt: string;
   docRefs: string[];
   planSummary: string;
+  style: {
+    id: string;
+    displayName: string;
+  };
 }
 
-export async function prepareComposition(idea: string, style: string): Promise<Step2Result> {
-  // Step 1: Hiểu ý tưởng -> Meta Plan
+export async function prepareComposition(idea: string, styleId: string, generate: GenerateFn = defaultGenerate): Promise<Step2Result> {
   const forAi = getForAi();
-  const step1Docs = getDocsForStep(1);
-  
-  const step1System = `${forAi}\n\n${step1Docs}\n\nYou are an expert music curator. 
-Your task is to transform a user's idea and style into a structured song request and a meta plan.
-Follow the guidelines in docs/m-guide/pipeline/step-01-meta-prompt.md.`;
+  const catalog = getCatalog();
+  const styleCard = getStyleCard(styleId);
+  const stylePage = catalog.pages.find(p => p.id === styleId);
+  const styleDisplayName = stylePage ? stylePage.summary.split(':')[0] : styleId;
 
-  const step1Prompt = `Idea: ${idea}\nStyle: ${style}\n\nCreate a structured meta-plan for this song.`;
+  // Step 1: Hiểu ý tưởng -> Meta Plan & Song Request (Structured)
+  const step1Docs = getCoreDocsForStep(1);
+  const step1System = `${forAi}\n\n${step1Docs}\n\nStyle Context:\n${styleCard || styleId}\n\nYou are an expert music curator. 
+Transform the user's idea and style into a structured song request and a meta plan.`;
 
-  const response1 = await ai.models.generateContent({
+  const songRequestSchema = {
+    type: Type.OBJECT,
+    properties: {
+      language: { type: Type.STRING },
+      concept: { type: Type.STRING },
+      emotion: { type: Type.STRING },
+      story: { type: Type.STRING },
+      genre: { type: Type.STRING },
+      songForm: { type: Type.STRING },
+      lyricDirection: { type: Type.STRING },
+      melodyDirection: { type: Type.STRING },
+      rhythmDirection: { type: Type.STRING },
+      harmonyDirection: { type: Type.STRING },
+      vocalDirection: { type: Type.STRING },
+      arrangementDirection: { type: Type.STRING },
+      constraints: { type: Type.STRING }
+    },
+    required: ["concept", "emotion", "genre"]
+  };
+
+  const response1 = await generate({
     model: TEXT_MODEL,
-    contents: [{ parts: [{ text: step1Prompt }] }],
+    contents: [{ parts: [{ text: `Idea: ${idea}\nStyle: ${styleDisplayName}` }] }],
     config: {
       systemInstruction: step1System,
       temperature: 0.7,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          songRequest: songRequestSchema,
+          metaPlan: { type: Type.STRING }
+        },
+        required: ["songRequest", "metaPlan"]
+      }
     }
   });
 
-  const metaPlan = response1.text;
+  const step1Result = JSON.parse(response1.text);
 
-  // Step 2: Prepare prompts and DOC_REFS
-  const step2Docs = getDocsForStep(2);
-  const step2System = `${forAi}\n\n${step2Docs}\n\nYou are a senior music producer.
-Based on the Meta Plan provided, generate specialized prompts for Step 3 (Compose) and Step 4 (Arrange).
-You MUST select relevant document IDs (DOC_REFS) from the catalog for each step.`;
+  // Step 2: Select DOC_REFS & Prepare Prompts
+  const candidates = getCatalogCandidates(2);
+  const step2Docs = getCoreDocsForStep(2);
+  const step2System = `${forAi}\n\n${step2Docs}\n\nCatalog Candidates:\n${JSON.stringify(candidates, null, 2)}\n\nYou are a senior music producer.
+Based on the Meta Plan, generate specialized prompts and select relevant document IDs (DOC_REFS).
+ONLY select IDs from the candidates list. Max 10 refs.`;
 
-  const step2Prompt = `Meta Plan:\n${metaPlan}\n\nGenerate the composition plan using the defined schema.`;
-
-  const response2 = await ai.models.generateContent({
+  const response2 = await generate({
     model: TEXT_MODEL,
-    contents: [{ parts: [{ text: step2Prompt }] }],
+    contents: [{ parts: [{ text: `Meta Plan:\n${step1Result.metaPlan}` }] }],
     config: {
       systemInstruction: step2System,
       temperature: 0.4,
@@ -65,37 +101,60 @@ You MUST select relevant document IDs (DOC_REFS) from the catalog for each step.
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          composePrompt: { type: Type.STRING, description: "Detailed prompt for the Lead Sheet step" },
-          arrangePrompt: { type: Type.STRING, description: "Detailed prompt for the Arrangement step" },
-          docRefs: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "List of Catalog Doc IDs (e.g., KNOW.MELODY.CONTOUR) to be loaded for Step 3 and 4"
-          },
-          planSummary: { type: Type.STRING, description: "Brief summary of the creative approach" }
+          composePrompt: { type: Type.STRING },
+          arrangePrompt: { type: Type.STRING },
+          docRefs: { type: Type.ARRAY, items: { type: Type.STRING } },
+          planSummary: { type: Type.STRING }
         },
         required: ["composePrompt", "arrangePrompt", "docRefs", "planSummary"]
       }
     }
   });
 
-  return JSON.parse(response2.text) as Step2Result;
+  const step2Result = JSON.parse(response2.text);
+  
+  // Validate docRefs
+  const validIds = new Set(catalog.pages.map(p => p.id));
+  const filteredRefs = (step2Result.docRefs as string[])
+    .filter(id => validIds.has(id))
+    .slice(0, 12);
+
+  return {
+    songRequest: step1Result.songRequest,
+    metaPlan: step1Result.metaPlan,
+    composePrompt: step2Result.composePrompt,
+    arrangePrompt: step2Result.arrangePrompt,
+    docRefs: filteredRefs,
+    planSummary: step2Result.planSummary,
+    style: {
+      id: styleId,
+      displayName: styleDisplayName
+    }
+  };
 }
 
-export async function generateLeadSheet(composePrompt: string, docRefs: string[], metaPlan: string): Promise<string> {
+export async function generateLeadSheet(
+  composePrompt: string, 
+  docRefs: string[], 
+  metaPlan: string, 
+  songRequest: any,
+  styleId: string,
+  generate: GenerateFn = defaultGenerate
+): Promise<string> {
   const forAi = getForAi();
-  const step3Docs = getDocsForStep(3, docRefs);
+  const step3Core = getCoreDocsForStep(3);
+  const step3Refs = getDocsByRefs(docRefs);
+  const styleCard = getStyleCard(styleId);
   
-  const systemInstruction = `${forAi}\n\n${step3Docs}\n\nYou are a master composer. 
+  const systemInstruction = `${forAi}\n\n${step3Core}\n\n${step3Refs}\n\nStyle Card:\n${styleCard}\n\nYou are a master composer. 
 Create a Lead Sheet (melody, lyrics, chords) in MusicXML 4.0 format.
 Follow the rules in KNOW.MUSICXML.RULES.
-Bắt buộc bao gồm piano reduction (piano texture) nghe được, không pad whole-note.
-Output ONLY the MusicXML code inside a code block.`;
+Output ONLY the MusicXML code.`;
 
-  const prompt = `Meta Plan Context:\n${metaPlan}\n\nCompose Task:\n${composePrompt}`;
+  const prompt = `Meta Plan:\n${metaPlan}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${composePrompt}`;
 
   async function attempt(model: string): Promise<string> {
-    const res = await ai.models.generateContent({
+    const res = await generate({
       model,
       contents: [{ parts: [{ text: prompt }] }],
       config: {
@@ -115,32 +174,42 @@ Output ONLY the MusicXML code inside a code block.`;
   }
 
   let xml = await attempt(TEXT_MODEL);
+  let validation = validateLeadSheet(xml, songRequest);
   
-  // Validation
-  const isValid = xml.includes('<score-partwise') && xml.includes('</score-partwise>') && xml.includes('<part-list>') && xml.includes('<measure');
-  
-  if (!isValid) {
-    console.warn("Lead Sheet Attempt 1 failed validation. Retrying with fallback model...");
+  if (!validation.isValid) {
+    console.warn("Lead Sheet Attempt 1 failed validation. Retrying with fallback model...", validation.errors);
     xml = await attempt(FALLBACK_MODEL);
+    validation = validateLeadSheet(xml, songRequest);
+    if (!validation.isValid) {
+      throw new Error(`MUSICXML_INVALID_AFTER_RETRY: ${validation.errors.join(", ")}`);
+    }
   }
 
   return xml;
 }
 
-export async function generateArrangement(leadSheetXml: string, arrangePrompt: string, docRefs: string[]): Promise<string> {
+export async function generateArrangement(
+  leadSheetXml: string, 
+  arrangePrompt: string, 
+  docRefs: string[],
+  songRequest: any,
+  styleId: string,
+  generate: GenerateFn = defaultGenerate
+): Promise<string> {
   const forAi = getForAi();
-  const step4Docs = getDocsForStep(4, docRefs);
+  const step4Core = getCoreDocsForStep(4);
+  const step4Refs = getDocsByRefs(docRefs);
+  const styleCard = getStyleCard(styleId);
   
-  const systemInstruction = `${forAi}\n\n${step4Docs}\n\nYou are a world-class arranger.
+  const systemInstruction = `${forAi}\n\n${step4Core}\n\n${step4Refs}\n\nStyle Card:\n${styleCard}\n\nYou are a world-class arranger.
 Take the provided Lead Sheet (MusicXML) and add a full arrangement.
-KEEP the lyrics, melodic identity, and harmony intent.
-Output ONLY the final arranged MusicXML 4.0 code inside a code block.
-Bắt buộc: importer_self_check PASS và piano_texture_check PASS.`;
+KEEP lyrics, melodic identity, and harmony intent.
+Output ONLY final arranged MusicXML 4.0.`;
 
-  const prompt = `Lead Sheet XML:\n${leadSheetXml}\n\nArrangement Task:\n${arrangePrompt}`;
+  const prompt = `Lead Sheet XML:\n${leadSheetXml}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${arrangePrompt}`;
 
   async function attempt(model: string): Promise<string> {
-    const res = await ai.models.generateContent({
+    const res = await generate({
       model,
       contents: [{ parts: [{ text: prompt }] }],
       config: {
@@ -160,13 +229,15 @@ Bắt buộc: importer_self_check PASS và piano_texture_check PASS.`;
   }
 
   let xml = await attempt(TEXT_MODEL);
+  let validation = validateArrangement(xml, leadSheetXml);
   
-  // Validation
-  const isValid = xml.includes('<score-partwise') && xml.includes('</score-partwise>') && xml.includes('<part-list>') && xml.includes('<measure');
-  
-  if (!isValid) {
-    console.warn("Arrangement Attempt 1 failed validation. Retrying with fallback model...");
+  if (!validation.isValid) {
+    console.warn("Arrangement Attempt 1 failed validation. Retrying with fallback model...", validation.errors);
     xml = await attempt(FALLBACK_MODEL);
+    validation = validateArrangement(xml, leadSheetXml);
+    if (!validation.isValid) {
+      throw new Error(`MUSICXML_INVALID_AFTER_RETRY: ${validation.errors.join(", ")}`);
+    }
   }
 
   return xml;
