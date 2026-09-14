@@ -162,11 +162,13 @@ Follow the rules in KNOW.MUSICXML.RULES and KNOW.MUSICXML.ANTI-PATTERNS.
 Ensure the lead sheet sets up valid part metadata: divisions, key, time, and appropriate clef.
 
 Unless the user explicitly asks for a short demo, generate a COMPLETE song form.
-- COMPUTE YOUR MEASURE BUDGET: To pass the 150-second completeness gate, you MUST generate at least 53 measures (assuming ~72 BPM in 4/4).
+- COMPUTE YOUR MEASURE BUDGET: Minimum Measures = (Target Duration (180-240s) * (BPM / 60)) / (Beats per Measure).
+- Example: At 72 BPM in 4/4, 180s requires (180 * 1.2) / 4 = 54 measures.
+- You MUST generate enough measures to exceed the 150-second validation floor.
 - VOCAL PART: Complete melody and lyrics for the entire song form (Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Final Chorus, Outro).
 - PIANO REDUCTION: To stay within token limits for a full song, use a SIMPLE harmonic reduction. Use block chords or a steady half-note pulse as required by KNOW.HARMONY.PIANO-REDUCTION. Do NOT use complex arpeggios or detailed figuration in this step.
 - NO HALLUCINATIONS: Use ONLY standard MusicXML 4.0 tags. Do NOT use <label>, <text-box>, or any tags not defined in the schema.
-- OUTPUT: Output ONLY the MusicXML code. Pretty-print the XML for standard compliance. Do NOT truncate the score; you must reach the final measure.`;
+- OUTPUT: Output ONLY the MusicXML code. Use a DENSE representation: omit all XML comments, and omit redundant <attributes> blocks in measures where they haven't changed. Do NOT truncate the score; you must reach the final measure. Do NOT use pretty-printing; keep the XML as compact as possible while remaining valid.`;
 
   const basePrompt = `Meta Plan:\n${metaPlan}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${composePrompt}`;
 
@@ -232,7 +234,7 @@ CRITICAL XML RULES:
 - CHORD ENCODING: A <note> must have EXACTLY ONE <pitch> (or <rest>, or <unpitched>). To encode a chord (e.g. C-E-G), emit 3 separate <note> elements. The first has no <chord/> tag. The subsequent notes MUST have a <chord/> tag. Do NOT use <chord/> on the first note of a measure/voice/staff.
 - DURATION ENCODING: Never emit a normal <note> or <rest> without <duration>. <grace> notes are the only exception.
 - Unless the user explicitly asks for a short demo, ensure the arrangement covers the COMPLETE song form (Intro, Verses, Choruses, Bridge, Outro) and matches the duration intent of the lead sheet (typically 180-240 seconds). Do NOT truncate the arrangement.
-- EFFICIENCY: To fit a full song in one response, use a standard but efficient MusicXML representation. Do NOT include XML comments. Do NOT use non-standard tags like <label>.
+- EFFICIENCY: To fit a full song in one response, use a DENSE and efficient MusicXML representation. Omit all XML comments. Omit redundant <attributes> blocks (key, time, clef) in measures where they haven't changed. Do NOT use non-standard tags like <label>.
 Output ONLY final arranged MusicXML 4.0.`;
 
   const basePrompt = `Lead Sheet XML:\n${leadSheetXml}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${arrangePrompt}`;

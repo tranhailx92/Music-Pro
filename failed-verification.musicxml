@@ -1,34 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE score-partwise PUBLIC
-  "-//Recordare//DTD MusicXML 4.0 Partwise//EN"
-  "http://www.musicxml.org/dtds/partwise.dtd">
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
 <score-partwise version="4.0">
   <work>
-    <work-title>Đường Về Nhà</work-title>
+    <work-title>Đường Về Nhà Bình Yên</work-title>
   </work>
   <identification>
     <creator type="composer">ProjectMusic00 AI</creator>
+    <creator type="lyricist">ProjectMusic00 AI</creator>
   </identification>
   <part-list>
     <score-part id="P1">
-      <part-name>Voice</part-name>
-      <midi-instrument id="P1-I1">
-        <midi-program>53</midi-program>
-      </midi-instrument>
+      <part-name>Vocal</part-name>
     </score-part>
     <score-part id="P2">
       <part-name>Piano</part-name>
-      <midi-instrument id="P2-I1">
-        <midi-program>1</midi-program>
-      </midi-instrument>
     </score-part>
   </part-list>
-
-  <!-- ==================================================================== -->
-  <!-- PART 1: VOICE -->
-  <!-- ==================================================================== -->
   <part id="P1">
-    <!-- INTRO (Measures 1-4) -->
     <measure number="1">
       <attributes>
         <divisions>2</divisions>
@@ -80,8 +68,6 @@
         <voice>1</voice>
       </note>
     </measure>
-
-    <!-- VERSE 1 (Measures 5-12) -->
     <measure number="5">
       <note>
         <pitch>
@@ -131,7 +117,7 @@
         <voice>1</voice>
         <type>eighth</type>
         <lyric number="1">
-          <syllabic>single</syllabic>
+          <syllabic>begin</syllabic>
           <text>rơi</text>
         </lyric>
       </note>
@@ -144,15 +130,15 @@
         <voice>1</voice>
         <type>eighth</type>
         <lyric number="1">
-          <syllabic>single</syllabic>
-          <text>rơi,</text>
+          <syllabic>end</syllabic>
+          <text>rơi</text>
         </lyric>
       </note>
     </measure>
     <measure number="6">
       <note>
         <pitch>
-          <step>E</step>
+          <step>B</step>
           <octave>4</octave>
         </pitch>
         <duration>2</duration>
@@ -160,7 +146,20 @@
         <type>quarter</type>
         <lyric number="1">
           <syllabic>single</syllabic>
-          <text>Lòng</text>
+          <text>Con</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>đường</text>
         </lyric>
       </note>
       <note>
@@ -173,20 +172,20 @@
         <type>quarter</type>
         <lyric number="1">
           <syllabic>single</syllabic>
-          <text>con</text>
+          <text>xưa</text>
         </lyric>
       </note>
       <note>
         <pitch>
-          <step>A</step>
-          <octave>4</octave>
+          <step>C</step>
+          <octave>5</octave>
         </pitch>
-        <duration>2</duration>
+        <duration>1</duration>
         <voice>1</voice>
-        <type>quarter</type>
+        <type>eighth</type>
         <lyric number="1">
-          <syllabic>single</syllabic>
-          <text>thương</text>
+          <syllabic>begin</syllabic>
+          <text>vắng</text>
         </lyric>
       </note>
       <note>
@@ -198,8 +197,62 @@
         <voice>1</voice>
         <type>eighth</type>
         <lyric number="1">
+          <syllabic>end</syllabic>
+          <text>ai</text>
+        </lyric>
+      </note>
+    </measure>
+    <measure number="7">
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
           <syllabic>single</syllabic>
-          <text>quê</text>
+          <text>Hàng</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>cau</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>nghiêng</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>D</step>
+          <octave>5</octave>
+        </pitch>
+        <duration>1</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <lyric number="1">
+          <syllabic>begin</syllabic>
+          <text>bóng</text>
         </lyric>
       </note>
       <note>
@@ -211,12 +264,66 @@
         <voice>1</voice>
         <type>eighth</type>
         <lyric number="1">
-          <syllabic>single</syllabic>
-          <text>tôi,</text>
+          <syllabic>end</syllabic>
+          <text>thềm</text>
         </lyric>
       </note>
     </measure>
-    <measure number="7">
+    <measure number="8">
+      <note>
+        <pitch>
+          <step>D</step>
+          <octave>5</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>Dáng</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>cha</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>G</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>hao</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>gầy</text>
+        </lyric>
+      </note>
+    </measure>
+    <measure number="9">
       <note>
         <pitch>
           <step>D</step>
@@ -227,13 +334,144 @@
         <type>quarter</type>
         <lyric number="1">
           <syllabic>single</syllabic>
-          <text>Đường</text>
+          <text>Từng</text>
         </lyric>
       </note>
       <note>
         <pitch>
-          <step>F</step>
-          <alter>1</alter>
+          <step>G</step>
           <octave>4</octave>
         </pitch>
         <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>cơn</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>G</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>gió</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>1</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <lyric number="1">
+          <syllabic>begin</syllabic>
+          <text>bấc</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>1</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <lyric number="1">
+          <syllabic>end</syllabic>
+          <text>về</text>
+        </lyric>
+      </note>
+    </measure>
+    <measure number="10">
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>Mái</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>tranh</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>G</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>nghèo</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>C</step>
+          <octave>5</octave>
+        </pitch>
+        <duration>1</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <lyric number="1">
+          <syllabic>begin</syllabic>
+          <text>vẫn</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>1</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <lyric number="1">
+          <syllabic>end</syllabic>
+          <text>chờ</text>
+        </lyric>
+      </note>
+    </measure>
+    <measure number="11">
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <lyric number="1">
+          <syllabic>single</syllabic>
+          <text>Nồi</text>
+        </lyric>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <octave>4
