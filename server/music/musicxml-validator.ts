@@ -103,26 +103,63 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
   if (referenceLeadSheetXml) {
     const refDna = extractSongDNA(referenceLeadSheetXml);
     
-    // 1. Lyrics master check
-    if (refDna.lyrics.syllables.length > 0 && arrangedDna.lyrics.syllables.length < refDna.lyrics.syllables.length * 0.8) {
-      errors.push("Arrangement lost too many lyrics from the original lead sheet");
+    // 1. Normalized main lyrics check
+    const refLyricNorm = (refDna.lyrics.assembledLyric || "").toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
+    const arrangedLyricNorm = (arrangedDna.lyrics.assembledLyric || "").toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
+    if (refLyricNorm.length > 0 && arrangedLyricNorm.length > 0) {
+      const commonLen = refLyricNorm.split('').filter(c => arrangedLyricNorm.includes(c)).length;
+      const ratio = commonLen / refLyricNorm.length;
+      if (ratio < 0.5) {
+        errors.push("Arrangement lost too many lyrics from the original lead sheet");
+      }
     }
 
-    // 2. Musical constants
-    if (refDna.musical.timeSignature && arrangedDna.musical.timeSignature !== refDna.musical.timeSignature) {
+    // 2. Musical constants (Key + Mode)
+    const refKey = `${refDna.musical.key || ''} ${refDna.musical.mode || ''}`.trim();
+    const arrKey = `${arrangedDna.musical.key || ''} ${arrangedDna.musical.mode || ''}`.trim();
+    if (refKey && arrKey && refKey !== arrKey) {
+      errors.push(`Arrangement changed key/mode from ${refKey} to ${arrKey}`);
+    }
+
+    // 3. Meter (Time Signature)
+    if (refDna.musical.timeSignature && arrangedDna.musical.timeSignature && refDna.musical.timeSignature !== arrangedDna.musical.timeSignature) {
       errors.push(`Arrangement changed time signature from ${refDna.musical.timeSignature} to ${arrangedDna.musical.timeSignature}`);
     }
 
-    if (refDna.musical.key && arrangedDna.musical.key !== refDna.musical.key) {
-      errors.push(`Arrangement changed key from ${refDna.musical.key} to ${arrangedDna.musical.key}`);
+    // 4. Initial BPM
+    if (refDna.musical.tempoBpm && arrangedDna.musical.tempoBpm) {
+      if (Math.abs(refDna.musical.tempoBpm - arrangedDna.musical.tempoBpm) > 10) {
+        errors.push(`Arrangement significantly changed initial BPM from ${refDna.musical.tempoBpm} to ${arrangedDna.musical.tempoBpm}`);
+      }
     }
 
-    // 3. Melodic Identity (Simplified)
-    // At least one part should have a significant overlap with the original pitch sequence
-    // or the melody sequence should be preserved in some part.
-    // For now, we check if the arranged score has enough pitched notes.
-    if (arrangedDna.melody.length < refDna.melody.length * 0.5) {
-      errors.push("Arrangement has significantly fewer notes than the lead sheet");
+    // 5. Melody identity (opening motif / pitch sequence / contour similarity)
+    const refMotif = refDna.fingerprint?.openingMotif || [];
+    const arrMotif = arrangedDna.fingerprint?.openingMotif || [];
+    if (refMotif.length > 0 && arrMotif.length > 0) {
+      const matchCount = refMotif.filter(p => arrMotif.includes(p)).length;
+      const motifSimilarity = matchCount / refMotif.length;
+      if (motifSimilarity < 0.2) {
+        errors.push("Arrangement failed to preserve the opening melodic motif identity");
+      }
+    } else {
+      const refContour = refDna.fingerprint?.contour || [];
+      const arrContour = arrangedDna.fingerprint?.contour || [];
+      if (refContour.length >= 3 && arrContour.length >= 3) {
+        const commonContour = refContour.filter((c, i) => arrContour[i] === c).length;
+        if (commonContour / refContour.length < 0.25) {
+          errors.push("Arrangement failed to preserve melodic contour");
+        }
+      }
+    }
+
+    // 6. Harmony check
+    if (refDna.harmony && refDna.harmony.length > 0) {
+      const refHarmonyCount = refDna.harmony.reduce((acc, h) => acc + h.chordSymbols.length, 0);
+      const arrHarmonyCount = arrangedDna.harmony.reduce((acc, h) => acc + h.chordSymbols.length, 0);
+      if (refHarmonyCount > 0 && arrHarmonyCount === 0) {
+        errors.push("Arrangement lost all harmony/chords present in the lead sheet");
+      }
     }
   }
   

@@ -1,47 +1,127 @@
-// Mocking the behavior of generateLeadSheet and generateArrangement to test routing and retries
-import { XMLValidator } from 'fast-xml-parser';
+import { prepareComposition, generateLeadSheet, generateArrangement, GenerateFn } from '../../server/music/composer';
 
-async function mockGenerateWithAI(prompt: string, isValid: boolean, model: string) {
-    if (!isValid) return "Invalid XML";
-    return model === 'gemini-3.5-flash-lite' ? "<score-partwise><part-list/><part><measure/></part></score-partwise>" : "<score-partwise><part-list/><part><measure/></part></score-partwise>";
-}
+const validXml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list>
+    <score-part id="P1"><part-name>Melody</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <key><fifths>0</fifths><mode>major</mode></key>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <sound tempo="120"/>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>4</duration>
+        <type>whole</type>
+        <lyric><text>Test lyric</text></lyric>
+      </note>
+      <harmony><root><root-step>C</root-step></root><kind>major</kind></harmony>
+    </measure>
+  </part>
+</score-partwise>`;
 
-async function testLeadSheetRouting(firstAttemptValid: boolean) {
-    let callCount = 0;
-    const TEXT_MODEL = 'gemini-3.5-flash-lite';
-    const FALLBACK_MODEL = 'gemini-3.5-flash';
+const invalidXml = `<score-partwise><part><measure><note><rest/></note></measure></part></score-partwise>`;
 
-    async function attempt(model: string, valid: boolean) {
-        callCount++;
-        const res = await mockGenerateWithAI("prompt", valid, model);
-        const xml = res.includes('<score-partwise') ? res : "invalid";
-        return xml;
-    }
-
-    let xml = await attempt(TEXT_MODEL, firstAttemptValid);
-    const isValid = xml.includes('<score-partwise');
-    
-    if (!isValid) {
-        xml = await attempt(FALLBACK_MODEL, true); // Fallback usually succeeds in mock
-    }
-
-    return { xml, callCount };
-}
-
-console.log("--- Testing Compose Routing & Fallback Logic ---");
+console.log("--- Testing Production Composer Retry & Routing Logic ---");
 
 async function runTests() {
-    // Case A: First attempt succeeds
-    const resA = await testLeadSheetRouting(true);
-    if (resA.callCount !== 1) throw new Error("Case A failed: should not retry if valid");
-    console.log("✅ Case A: No retry on valid XML");
+  // Test 1: generateLeadSheet first valid => 1 call
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      return { text: validXml } as any;
+    };
 
-    // Case B: First attempt fails -> Retries once
-    const resB = await testLeadSheetRouting(false);
-    if (resB.callCount !== 2) throw new Error("Case B failed: should retry exactly once if invalid");
-    console.log("✅ Case B: Retried once on invalid XML");
-    
-    console.log("🚀 ALL COMPOSE ROUTING TESTS PASSED");
+    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (calls !== 1) throw new Error(`Test 1 failed: expected 1 call, got ${calls}`);
+    if (!xml.includes("score-partwise")) throw new Error("Test 1 failed: invalid xml returned");
+    console.log("✅ Test 1: First valid lead sheet -> 1 call");
+  }
+
+  // Test 2: generateLeadSheet first invalid, second valid => 2 calls
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      if (calls === 1) {
+        return { text: invalidXml } as any;
+      }
+      return { text: validXml } as any;
+    };
+
+    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (calls !== 2) throw new Error(`Test 2 failed: expected 2 calls, got ${calls}`);
+    console.log("✅ Test 2: First invalid, second valid -> 2 calls (fallback)");
+  }
+
+  // Test 3: both invalid => MUSICXML_INVALID_AFTER_RETRY
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      return { text: invalidXml } as any;
+    };
+
+    let caughtError: any = null;
+    try {
+      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    } catch (err) {
+      caughtError = err;
+    }
+
+    if (!caughtError || caughtError.code !== "MUSICXML_INVALID_AFTER_RETRY") {
+      throw new Error(`Test 3 failed: expected MUSICXML_INVALID_AFTER_RETRY code, got ${JSON.stringify(caughtError)}`);
+    }
+    console.log("✅ Test 3: Both invalid -> MUSICXML_INVALID_AFTER_RETRY");
+  }
+
+  // Test 4: network/API throw on first call => no fallback (call count = 1)
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      throw new Error("Network timeout");
+    };
+
+    let threw = false;
+    try {
+      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    } catch (err: any) {
+      threw = true;
+      if (calls !== 1) throw new Error(`Test 4 failed: expected 1 call before throw, got ${calls}`);
+      if (err.message !== "Network timeout") throw new Error(`Test 4 failed: unexpected error message: ${err.message}`);
+    }
+
+    if (!threw) throw new Error("Test 4 failed: expected error to be thrown");
+    console.log("✅ Test 4: Network/API throw -> no fallback (call count = 1)");
+  }
+
+  // Test 5: generateArrangement first invalid, second valid => fallback once
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      if (calls === 1) {
+        return { text: invalidXml } as any;
+      }
+      return { text: validXml } as any;
+    };
+
+    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (calls !== 2) throw new Error(`Test 5 failed: expected 2 calls for arrangement fallback, got ${calls}`);
+    console.log("✅ Test 5: Arrangement invalid -> fallback once (2 calls)");
+  }
+
+  console.log("🚀 ALL COMPOSE ROUTING & RETRY TESTS PASSED");
 }
 
-runTests();
+runTests().catch(err => {
+  console.error("❌ Compose Routing Test Failed:", err);
+  process.exit(1);
+});

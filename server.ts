@@ -19,7 +19,7 @@ function getStyleDisplayName(styleId: string): string {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Increase payload limit for large XML files
   app.use(express.json({ limit: '10mb' }));
