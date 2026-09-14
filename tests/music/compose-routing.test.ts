@@ -173,6 +173,52 @@ async function runTests() {
     console.log("✅ Test 8: Arrangement network throw -> no fallback (call count = 1)");
   }
 
+  // Test 9: Lead Sheet fallback contains validation errors in prompt
+  {
+    let fallbackPrompt = "";
+    const mockGenerate: GenerateFn = async (params) => {
+      const prompt = (params.contents[0].parts[0] as any).text;
+      if (fallbackPrompt === "") {
+        // First call
+        fallbackPrompt = "first_called";
+        return { text: invalidXml } as any;
+      } else {
+        // Second call (fallback)
+        fallbackPrompt = prompt;
+        return { text: validXml } as any;
+      }
+    };
+
+    await generateLeadSheet("Compose prompt", [], "Meta plan", { songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (!fallbackPrompt.includes("Previous MusicXML failed validation:")) {
+      throw new Error("Test 9 failed: fallback prompt did not contain validation errors");
+    }
+    console.log("✅ Test 9: Lead Sheet fallback contains validation errors in prompt");
+  }
+
+  // Test 10: Arrangement fallback contains validation errors in prompt
+  {
+    let fallbackPrompt = "";
+    const mockGenerate: GenerateFn = async (params) => {
+      const prompt = (params.contents[0].parts[0] as any).text;
+      if (fallbackPrompt === "") {
+        // First call
+        fallbackPrompt = "first_called";
+        return { text: invalidXml } as any;
+      } else {
+        // Second call (fallback)
+        fallbackPrompt = prompt;
+        return { text: validXml } as any;
+      }
+    };
+
+    await generateArrangement(validXml, "Arrange prompt", [], { songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (!fallbackPrompt.includes("Previous MusicXML failed validation:")) {
+      throw new Error("Test 10 failed: arrangement fallback prompt did not contain validation errors");
+    }
+    console.log("✅ Test 10: Arrangement fallback contains validation errors in prompt");
+  }
+
   console.log("🚀 ALL COMPOSE ROUTING & RETRY TESTS PASSED");
 }
 

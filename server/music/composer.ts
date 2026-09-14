@@ -160,12 +160,19 @@ export async function generateLeadSheet(
 Create a Lead Sheet (melody, lyrics, chords) in MusicXML 4.0 format.
 Follow the rules in KNOW.MUSICXML.RULES and KNOW.MUSICXML.ANTI-PATTERNS.
 Ensure the lead sheet sets up valid part metadata: divisions, key, time, and appropriate clef.
-Unless the user explicitly asks for a short demo, generate a COMPLETE song form (e.g., Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Final Chorus, Outro) taking around 3-4 minutes. Do not output a 16-bar sketch for a full song request.
+
+Unless the user explicitly asks for a short demo, generate a COMPLETE song form.
+- Target a duration of approximately 180-240 seconds.
+- Derive a minimum measure budget from the requested BPM, meter, and target duration.
+- For example, in 4/4 at ~70 BPM, a full song requires roughly 50-70 unique measures in the master Vocal/Melody part.
+- Do NOT output a 16-32 bar sketch for a full song request; the output MUST exceed the 150-second validation floor.
+- Ensure all requested sections (e.g., Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Final Chorus, Outro) are represented and distinct.
 Output ONLY the MusicXML code.`;
 
-  const prompt = `Meta Plan:\n${metaPlan}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${composePrompt}`;
+  const basePrompt = `Meta Plan:\n${metaPlan}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${composePrompt}`;
 
-  async function attempt(model: string): Promise<string> {
+  async function attempt(model: string, feedback?: string): Promise<string> {
+    const prompt = feedback ? `${basePrompt}\n\n${feedback}` : basePrompt;
     const res = await generate({
       model,
       contents: [{ parts: [{ text: prompt }] }],
@@ -189,8 +196,9 @@ Output ONLY the MusicXML code.`;
   let validation = validateLeadSheet(xml, songRequest);
   
   if (!validation.isValid) {
+    const feedback = `Previous MusicXML failed validation:\n- ${validation.errors.join("\n- ")}\nRegenerate the complete score and fix these validation errors.`;
     console.warn("Lead Sheet Attempt 1 failed validation. Retrying with fallback model...", validation.errors);
-    xml = await attempt(FALLBACK_MODEL);
+    xml = await attempt(FALLBACK_MODEL, feedback);
     validation = validateLeadSheet(xml, songRequest);
     if (!validation.isValid) {
       const err: any = new Error(`Lead Sheet validation failed after retry: ${validation.errors.join(", ")}`);
@@ -223,12 +231,13 @@ CRITICAL XML RULES:
 - EVERY part must specify divisions, key, time, and appropriate clef (Vocal/Guitar/Strings = treble, Electric Bass = bass clef, Piano = grand staff treble + bass). Do NOT let Electric Bass C2 render in treble clef.
 - CHORD ENCODING: A <note> must have EXACTLY ONE <pitch> (or <rest>, or <unpitched>). To encode a chord (e.g. C-E-G), emit 3 separate <note> elements. The first has no <chord/> tag. The subsequent notes MUST have a <chord/> tag. Do NOT use <chord/> on the first note of a measure/voice/staff.
 - DURATION ENCODING: Never emit a normal <note> or <rest> without <duration>. <grace> notes are the only exception.
-- Unless the user explicitly asks for a short demo, ensure the arrangement covers the COMPLETE song form.
+- Unless the user explicitly asks for a short demo, ensure the arrangement covers the COMPLETE song form (Intro, Verses, Choruses, Bridge, Outro) and matches the duration intent of the lead sheet (typically 180-240 seconds). Do NOT truncate the arrangement.
 Output ONLY final arranged MusicXML 4.0.`;
 
-  const prompt = `Lead Sheet XML:\n${leadSheetXml}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${arrangePrompt}`;
+  const basePrompt = `Lead Sheet XML:\n${leadSheetXml}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${arrangePrompt}`;
 
-  async function attempt(model: string): Promise<string> {
+  async function attempt(model: string, feedback?: string): Promise<string> {
+    const prompt = feedback ? `${basePrompt}\n\n${feedback}` : basePrompt;
     const res = await generate({
       model,
       contents: [{ parts: [{ text: prompt }] }],
@@ -252,8 +261,9 @@ Output ONLY final arranged MusicXML 4.0.`;
   let validation = validateArrangement(xml, leadSheetXml, songRequest);
   
   if (!validation.isValid) {
+    const feedback = `Previous MusicXML failed validation:\n- ${validation.errors.join("\n- ")}\nRegenerate the complete score and fix these validation errors.`;
     console.warn("Arrangement Attempt 1 failed validation. Retrying with fallback model...", validation.errors);
-    xml = await attempt(FALLBACK_MODEL);
+    xml = await attempt(FALLBACK_MODEL, feedback);
     validation = validateArrangement(xml, leadSheetXml, songRequest);
     if (!validation.isValid) {
       const err: any = new Error(`Arrangement validation failed after retry: ${validation.errors.join(", ")}`);
