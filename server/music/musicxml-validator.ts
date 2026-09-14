@@ -138,23 +138,38 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
     }
 
     // 2. Musical constants (Key + Mode)
+    const refHasKey = /<key\b[^>]*>[\s\S]*?<\/key>|<key\b[^>]*\/>/i.test(referenceLeadSheetXml);
+    const arrHasKey = /<key\b[^>]*>[\s\S]*?<\/key>|<key\b[^>]*\/>/i.test(xml);
     const refKey = `${refDna.musical.key || ''} ${refDna.musical.mode || ''}`.trim();
     const arrKey = `${arrangedDna.musical.key || ''} ${arrangedDna.musical.mode || ''}`.trim();
-    if (refKey && arrKey && refKey !== arrKey) {
+
+    if (refHasKey && !arrHasKey) {
+      errors.push("Arrangement omitted key/mode metadata present in the reference lead sheet");
+    } else if (refHasKey && arrHasKey && refKey && arrKey && refKey !== arrKey) {
       errors.push(`Arrangement changed key/mode from ${refKey} to ${arrKey}`);
     }
 
     // 3. Meter (Time Signature)
-    if (refDna.musical.timeSignature && arrangedDna.musical.timeSignature) {
+    const refHasTime = /<time\b[^>]*>[\s\S]*?<\/time>|<time\b[^>]*\/>/i.test(referenceLeadSheetXml);
+    const arrHasTime = /<time\b[^>]*>[\s\S]*?<\/time>|<time\b[^>]*\/>/i.test(xml);
+
+    if (refHasTime && !arrHasTime) {
+      errors.push("Arrangement omitted time signature metadata present in the reference lead sheet");
+    } else if (refHasTime && arrHasTime && refDna.musical.timeSignature && arrangedDna.musical.timeSignature) {
       if (refDna.musical.timeSignature !== arrangedDna.musical.timeSignature) {
         errors.push(`Arrangement changed time signature from ${refDna.musical.timeSignature} to ${arrangedDna.musical.timeSignature}`);
       }
     }
 
     // 4. Initial BPM
-    if (refDna.musical.tempoBpm && arrangedDna.musical.tempoBpm) {
-      if (Math.abs(refDna.musical.tempoBpm - arrangedDna.musical.tempoBpm) > 10) {
-        errors.push(`Arrangement significantly changed initial BPM from ${refDna.musical.tempoBpm} to ${arrangedDna.musical.tempoBpm}`);
+    const refHasBpm = /tempo\s*=\s*["']?\d+["']?|<sound\b[^>]*tempo\b|<metronome\b/i.test(referenceLeadSheetXml) || refDna.musical.tempoBpm != null;
+    const arrHasBpm = /tempo\s*=\s*["']?\d+["']?|<sound\b[^>]*tempo\b|<metronome\b/i.test(xml) || arrangedDna.musical.tempoBpm != null;
+
+    if (refHasBpm && refDna.musical.tempoBpm != null) {
+      if (!arrHasBpm || arrangedDna.musical.tempoBpm == null) {
+        errors.push("Arrangement omitted initial BPM metadata present in the reference lead sheet");
+      } else if (refDna.musical.tempoBpm !== arrangedDna.musical.tempoBpm) {
+        errors.push(`Arrangement changed initial BPM from ${refDna.musical.tempoBpm} to ${arrangedDna.musical.tempoBpm}`);
       }
     }
 

@@ -173,4 +173,25 @@ if (validateArrangement(arrangedNoHarmony, refLeadSheet).isValid) {
 }
 console.log("✅ Arrangement test 7 (lost harmony) caught");
 
+// 8. Removed <key> / mode metadata => FAIL
+const arrangedNoKey = arrangedValid.replace(/<key>[\s\S]*?<\/key>/g, '');
+if (validateArrangement(arrangedNoKey, refLeadSheet).isValid) {
+  throw new Error("Arrangement test 8 (removed key metadata) incorrectly passed");
+}
+console.log("✅ Arrangement test 8 (removed key metadata) caught");
+
+// 9. Removed <time> metadata => FAIL
+const arrangedNoTime = arrangedValid.replace(/<time>[\s\S]*?<\/time>/g, '');
+if (validateArrangement(arrangedNoTime, refLeadSheet).isValid) {
+  throw new Error("Arrangement test 9 (removed time metadata) incorrectly passed");
+}
+console.log("✅ Arrangement test 9 (removed time metadata) caught");
+
+// 10. Removed initial tempo metadata => FAIL
+const arrangedNoTempo = arrangedValid.replace(/<sound[^>]*tempo="[^"]*"\s*\/>|<sound[^>]*tempo="[^"]*"[^>]*>/g, '');
+if (validateArrangement(arrangedNoTempo, refLeadSheet).isValid) {
+  throw new Error("Arrangement test 10 (removed initial tempo metadata) incorrectly passed");
+}
+console.log("✅ Arrangement test 10 (removed initial tempo metadata) caught");
+
 console.log("🚀 ALL MUSICXML VALIDATION TESTS PASSED");
