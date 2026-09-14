@@ -1,0 +1,41 @@
+{
+  "songRequest": {
+    "concept": "Bài hát V-Pop Ballad về nỗi nhớ nhà và hình ảnh người cha tận tụy trong khu vườn cũ.",
+    "emotion": "Sâu lắng, ấm áp, hoài niệm, xúc động nhưng không bi lụy.",
+    "genre": "V-Pop Ballad",
+    "arrangementDirection": "Phối khí tinh tế mang phong cách acoustic-electronic blend với piano, acoustic guitar, strings pad và rhythm section nhẹ nhàng.",
+    "constraints": "Tuân thủ chuẩn quy tắc V-Pop Ballad, bảo đảm giai điệu và thanh điệu tiếng Việt tự nhiên, có điểm nhấn rõ rệt ở điệp khúc.",
+    "harmonyDirection": "Hòa âm hiện đại, dung hòa giữa màu sắc ballad truyền thống và dòng chảy acoustic-electronic.",
+    "language": "Tiếng Việt",
+    "lyricDirection": "Hình ảnh gần gũi, giàu tính gợi hình (con đường nhỏ, hàng cau, vườn cây, cơn mưa, dáng cha hao gầy); câu hook điệp khúc nhấn mạnh cảm giác bình yên khi về nhà.",
+    "melodyDirection": "Giai điệu trữ tình, quãng vừa phải ở verse, mở rộng vươn cao ở điệp khúc để tạo cao trào.",
+    "rhythmDirection": "Nhịp điệu chậm rãi, mềm mại (65-80 BPM), nhịp 4/4 trữ tình.",
+    "songForm": "Verse - Pre-Chorus - Chorus - Verse - Pre-Chorus - Chorus - Bridge - Chorus - Outro",
+    "story": "Người con đi xa nhớ về những buổi chiều mưa, con đường nhỏ dẫn về ngôi nhà quen thuộc, nơi người cha vẫn lặng lẽ chăm sóc khu vườn chờ con trở về.",
+    "vocalDirection": "Giọng hát tự sự, tình cảm, tinh tế ở đoạn đầu và bùng nổ cảm xúc ấm áp ở phần điệp khúc."
+  },
+  "metaPlan": "Bước tiếp theo sẽ tiến hành sinh bản Lead Sheet (MusicXML) cho giai điệu và lời ca cùng với phần đệm piano reduction đạt chuẩn chất lượng.",
+  "planSummary": "Da chon loc cac trang huong dan cot loi cho Bước 3 (compose lead sheet, quality gate, piano reduction, melody invention, VN tone melody) va Bước 4 (arrange, section energy, backing harmonies, safe patterns, importer profile).",
+  "composePrompt": "Ban la chuyen gia sang tac nhac va xuat MusicXML buoc 3. Nhiem vu cua ban la tu sang tac giai điệu, viet loi ca khop thanh dieu tieng Viet, hoa am va xuat ban Lead Sheet duoi dinh dang MusicXML 4.0 cung voi notes gom quality gate va piano reduction texture hop ly. Tuan thu tuyet doi cac constraint trong tai lieu tham chieu.",
+  "arrangePrompt": "Ban la chuyen gia phoi khi buoc 4. Nhiem vu cua ban la doc Lead Sheet buoc 3, lock progression, trien khai nhieu part (vocal, piano texture, rhythm, bass, strings), dam bao energy va dynamics tung section, cung voi importer self check va piano texture check hop le.",
+  "composeDocRefs": [
+    "PIPE.STEP-03",
+    "KNOW.LYRICS.CRAFT",
+    "KNOW.LYRICS.LYRIC-MELODY-FIT",
+    "KNOW.MELODY.INVENTION",
+    "KNOW.MELODY.QUALITY-GATE",
+    "KNOW.HARMONY.PIANO-REDUCTION",
+    "KNOW.VI.TONE-MELODY",
+    "KNOW.MUSICXML.RULES"
+  ],
+  "arrangeDocRefs": [
+    "PIPE.STEP-04",
+    "KNOW.ARR.SECTION-ENERGY",
+    "KNOW.ARR.DYNAMICS-STRUCTURE",
+    "KNOW.HARMONY.PIANO-REDUCTION",
+    "KNOW.VOCAL.BACKING-HARMONIES",
+    "KNOW.MUSICXML.RULES",
+    "KNOW.MUSICXML.SAFE-PATTERNS",
+    "KNOW.MUSICXML.IMPORTER-PROFILE"
+  ]
+}
