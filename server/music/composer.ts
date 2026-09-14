@@ -158,7 +158,9 @@ export async function generateLeadSheet(
   
   const systemInstruction = `${forAi}\n\n${step3Core}\n\n${step3Refs}\n\nStyle Card:\n${styleInfo?.content || styleId}\n\nYou are a master composer. 
 Create a Lead Sheet (melody, lyrics, chords) in MusicXML 4.0 format.
-Follow the rules in KNOW.MUSICXML.RULES.
+Follow the rules in KNOW.MUSICXML.RULES and KNOW.MUSICXML.ANTI-PATTERNS.
+Ensure the lead sheet sets up valid part metadata: divisions, key, time, and appropriate clef.
+Unless the user explicitly asks for a short demo, generate a COMPLETE song form (e.g., Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Final Chorus, Outro) taking around 3-4 minutes. Do not output a 16-bar sketch for a full song request.
 Output ONLY the MusicXML code.`;
 
   const prompt = `Meta Plan:\n${metaPlan}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${composePrompt}`;
@@ -216,6 +218,10 @@ export async function generateArrangement(
   const systemInstruction = `${forAi}\n\n${step4Core}\n\n${step4Refs}\n\nStyle Card:\n${styleInfo?.content || styleId}\n\nYou are a world-class arranger.
 Take the provided Lead Sheet (MusicXML) and add a full arrangement.
 KEEP lyrics, melodic identity, and harmony intent.
+CRITICAL XML RULES:
+- EVERY part must specify divisions, key, time, and appropriate clef (Vocal/Guitar/Strings = treble, Electric Bass = bass clef, Piano = grand staff treble + bass). Do NOT let Electric Bass C2 render in treble clef.
+- CHORD ENCODING: A <note> must have EXACTLY ONE <pitch> (or <rest>, or <unpitched>). To encode a chord (e.g. C-E-G), emit 3 separate <note> elements. The first has no <chord/> tag. The subsequent notes MUST have a <chord/> tag. Do NOT use <chord/> on the first note of a measure/voice/staff.
+- Unless the user explicitly asks for a short demo, ensure the arrangement covers the COMPLETE song form.
 Output ONLY final arranged MusicXML 4.0.`;
 
   const prompt = `Lead Sheet XML:\n${leadSheetXml}\n\nSong Request:\n${JSON.stringify(songRequest, null, 2)}\n\nTask:\n${arrangePrompt}`;

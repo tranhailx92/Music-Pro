@@ -43,14 +43,37 @@ export function validateMusicXML(xml: string): MusicXMLValidationResult {
         for (const m of measures) {
           if (m['note']) {
             const notes = Array.isArray(m['note']) ? m['note'] : [m['note']];
-            for (const n of notes) {
-              if (n.pitch && n.pitch.step && n.pitch.octave !== undefined) {
+            let previousNote: any = null;
+            let previousVoiceStaff = "";
+
+            for (let i = 0; i < notes.length; i++) {
+              const n = notes[i];
+              
+              if (Array.isArray(n.pitch)) {
+                errors.push("Invalid MusicXML: <note> contains multiple <pitch> elements. Chords must be encoded as separate notes with <chord/> tags.");
+              }
+
+              const isChord = n.chord !== undefined;
+              const voice = n.voice !== undefined ? String(n.voice) : "1";
+              const staff = n.staff !== undefined ? String(n.staff) : "1";
+              const currentVoiceStaff = `${voice}-${staff}`;
+
+              if (isChord) {
+                if (i === 0 || !previousNote || previousVoiceStaff !== currentVoiceStaff) {
+                  errors.push("Invalid MusicXML: <chord/> used on a note without a valid preceding note in the same voice/staff.");
+                }
+              }
+
+              if (n.pitch || n.rest !== undefined || n.unpitched !== undefined) {
+                 previousNote = n;
+                 previousVoiceStaff = currentVoiceStaff;
+              }
+
+              if (!Array.isArray(n.pitch) && n.pitch && n.pitch.step && n.pitch.octave !== undefined) {
                 hasPitchedNote = true;
-                break;
               }
             }
           }
-          if (hasPitchedNote) break;
         }
         if (hasPitchedNote) break;
       }

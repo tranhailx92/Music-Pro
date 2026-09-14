@@ -43,6 +43,34 @@ if (validateMusicXML(invalidXML2).isValid) {
 }
 console.log("✅ Invalid XML (missing structure) caught");
 
+// Chord Encoding tests
+const validChordXML = validXML.replace(
+  '<note>\n        <pitch><step>C</step><octave>4</octave></pitch>\n        <duration>4</duration>\n        <type>whole</type>\n      </note>',
+  '<note>\n        <pitch><step>C</step><octave>4</octave></pitch>\n        <duration>4</duration>\n        <type>whole</type>\n      </note>\n      <note>\n        <chord/>\n        <pitch><step>E</step><octave>4</octave></pitch>\n        <duration>4</duration>\n        <type>whole</type>\n      </note>\n      <note>\n        <chord/>\n        <pitch><step>G</step><octave>4</octave></pitch>\n        <duration>4</duration>\n        <type>whole</type>\n      </note>'
+);
+if (!validateMusicXML(validChordXML).isValid) {
+    throw new Error("Valid Chord XML (C-E-G as separate notes) failed validation");
+}
+console.log("✅ Valid Chord XML passed");
+
+const invalidMultiplePitchNoteXML = validXML.replace(
+  '<pitch><step>C</step><octave>4</octave></pitch>',
+  '<pitch><step>C</step><octave>4</octave></pitch><pitch><step>E</step><octave>4</octave></pitch><pitch><step>G</step><octave>4</octave></pitch>'
+);
+if (validateMusicXML(invalidMultiplePitchNoteXML).isValid) {
+    throw new Error("Invalid XML (multiple <pitch> in one <note>) passed validation");
+}
+console.log("✅ Invalid XML (multiple <pitch> in one <note>) caught");
+
+const invalidFirstNoteChordXML = validXML.replace(
+  '<note>\n        <pitch><step>C</step><octave>4</octave></pitch>',
+  '<note>\n        <chord/>\n        <pitch><step>C</step><octave>4</octave></pitch>'
+);
+if (validateMusicXML(invalidFirstNoteChordXML).isValid) {
+    throw new Error("Invalid XML (first note has <chord/>) passed validation");
+}
+console.log("✅ Invalid XML (first note has <chord/>) caught");
+
 // Test Lead Sheet lyrics check
 const leadSheetNoLyrics = validXML;
 const vocalRequest = { vocalDirection: "Male Singer" };

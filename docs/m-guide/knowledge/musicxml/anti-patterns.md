@@ -34,6 +34,8 @@ last-updated: "2026-09-08"
 | 11 | **`words` + `dynamics` (hoặc hai loại khác) trong cùng `<direction-type>`** | Tách thành nhiều `<direction-type>` anh em — xem safe-patterns |
 | 12 | **`midi-instrument` mà không có `score-instrument` cùng `id`** | Luôn khai báo cặp đủ |
 | 13 | Drum kit phức tạp (nhiều unpitched / nhiều score-instrument) khi chưa kiểm importer | Bước 4 mặc định bỏ trống phức tạp hoặc 1 kit tối giản |
+| 14 | **Nhiều `<pitch>` trong một `<note>`** | Chỉ 1 `<pitch>`/`<note>`. Hợp âm = nốt đầu bình thường, các nốt sau là `<note>` mới chứa `<chord/>` + 1 `<pitch>` |
+| 15 | **`<chord/>` ở nốt đầu tiên** của measure/voice/staff | Xóa `<chord/>`. Nó chỉ được dùng cho các nốt theo sau nốt đầu của hợp âm |
 
 Comment **được phép** nếu chỉ chú thích và element XML vẫn đầy đủ.
 
