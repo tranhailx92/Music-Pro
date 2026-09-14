@@ -1,8 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { XMLValidator } from 'fast-xml-parser';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, FileMusic, Loader2, ArrowRight, Save, Music, Download, Copy, Headphones, Play, Pause } from 'lucide-react';
-import { generateWithAI } from '../services/ai';
-import { knowledgeService } from '../services/knowledge';
 import { runsService } from '../services/runs';
 import { MusicXMLViewer } from '../components/MusicXMLViewer';
 import { useToast } from '../hooks/useToast';
@@ -140,7 +137,7 @@ export const ComposeView: React.FC = () => {
         body: JSON.stringify({ idea, styleId: style })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi chuẩn bị sáng tác');
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Lỗi chuẩn bị sáng tác');
       
       setComposePrompt(data.composePrompt);
       setArrangePrompt(data.arrangePrompt);
@@ -171,7 +168,7 @@ export const ComposeView: React.FC = () => {
         body: JSON.stringify({ composePrompt, composeDocRefs, metaPlan, songRequest, styleId: style })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi tạo bản nhạc');
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Lỗi tạo bản nhạc');
       
       setLeadSheetXml(data.xml);
       setStep(4);
@@ -192,7 +189,7 @@ export const ComposeView: React.FC = () => {
         body: JSON.stringify({ leadSheetXml, arrangePrompt, arrangeDocRefs, songRequest, styleId: style })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Lỗi phối khí');
+      if (!res.ok) throw new Error(data.error?.message || data.error || 'Lỗi phối khí');
       
       setFinalXml(data.xml);
       

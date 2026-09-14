@@ -140,6 +140,16 @@ export function extractSongDNA(musicXml: string, sourceRunId?: string): SongDNA 
     for (const m of measures) {
       if (m.backup || m.forward) timingConfidence = 'partial';
       
+      const soundObj = m.sound;
+      const soundTempo = soundObj?.['@_tempo'] || soundObj?.tempo;
+      if (soundTempo) {
+        const bpm = parseInt(soundTempo);
+        if (!tempoBpm) tempoBpm = bpm;
+        if (!tempoChanges.find(t => t.measure === mNum)) {
+           tempoChanges.push({ measure: mNum, bpm });
+        }
+      }
+      
       const directions = toArray(m.direction);
       for (const dir of directions) {
         const sound = dir.sound;

@@ -92,6 +92,23 @@ export function validateLeadSheet(xml: string, songRequest?: any): MusicXMLValid
   };
 }
 
+function computeLCS(seq1: number[], seq2: number[]): number {
+  if (seq1.length === 0 || seq2.length === 0) return 0;
+  const m = seq1.length;
+  const n = seq2.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (seq1[i - 1] === seq2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
 export function validateArrangement(xml: string, referenceLeadSheetXml?: string): MusicXMLValidationResult {
   const baseResult = validateMusicXML(xml);
   if (!baseResult.isValid) return baseResult;
@@ -104,13 +121,19 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
     const refDna = extractSongDNA(referenceLeadSheetXml);
     
     // 1. Normalized main lyrics check
-    const refLyricNorm = (refDna.lyrics.assembledLyric || "").toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
-    const arrangedLyricNorm = (arrangedDna.lyrics.assembledLyric || "").toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
-    if (refLyricNorm.length > 0 && arrangedLyricNorm.length > 0) {
-      const commonLen = refLyricNorm.split('').filter(c => arrangedLyricNorm.includes(c)).length;
-      const ratio = commonLen / refLyricNorm.length;
-      if (ratio < 0.5) {
-        errors.push("Arrangement lost too many lyrics from the original lead sheet");
+    const refLyric = (refDna.lyrics.assembledLyric || "").trim();
+    const arrLyric = (arrangedDna.lyrics.assembledLyric || "").trim();
+    if (refLyric.length > 0 && arrLyric.length === 0) {
+      errors.push("Arrangement lost all lyrics from the original lead sheet");
+    } else if (refLyric.length > 0) {
+      const refNorm = refLyric.toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
+      const arrNorm = arrLyric.toLowerCase().replace(/[^a-z0-9à-ỹ]/g, "");
+      if (refNorm.length > 0) {
+        const lcsLen = computeLCS(refNorm.split('').map(c => c.charCodeAt(0)), arrNorm.split('').map(c => c.charCodeAt(0)));
+        const ratio = lcsLen / refNorm.length;
+        if (ratio < 0.4) {
+          errors.push("Arrangement lost too many lyrics from the original lead sheet");
+        }
       }
     }
 
@@ -122,8 +145,10 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
     }
 
     // 3. Meter (Time Signature)
-    if (refDna.musical.timeSignature && arrangedDna.musical.timeSignature && refDna.musical.timeSignature !== arrangedDna.musical.timeSignature) {
-      errors.push(`Arrangement changed time signature from ${refDna.musical.timeSignature} to ${arrangedDna.musical.timeSignature}`);
+    if (refDna.musical.timeSignature && arrangedDna.musical.timeSignature) {
+      if (refDna.musical.timeSignature !== arrangedDna.musical.timeSignature) {
+        errors.push(`Arrangement changed time signature from ${refDna.musical.timeSignature} to ${arrangedDna.musical.timeSignature}`);
+      }
     }
 
     // 4. Initial BPM
@@ -133,33 +158,22 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
       }
     }
 
-    // 5. Melody identity (opening motif / pitch sequence / contour similarity)
-    const refMotif = refDna.fingerprint?.openingMotif || [];
-    const arrMotif = arrangedDna.fingerprint?.openingMotif || [];
-    if (refMotif.length > 0 && arrMotif.length > 0) {
-      const matchCount = refMotif.filter(p => arrMotif.includes(p)).length;
-      const motifSimilarity = matchCount / refMotif.length;
-      if (motifSimilarity < 0.2) {
-        errors.push("Arrangement failed to preserve the opening melodic motif identity");
-      }
-    } else {
-      const refContour = refDna.fingerprint?.contour || [];
-      const arrContour = arrangedDna.fingerprint?.contour || [];
-      if (refContour.length >= 3 && arrContour.length >= 3) {
-        const commonContour = refContour.filter((c, i) => arrContour[i] === c).length;
-        if (commonContour / refContour.length < 0.25) {
-          errors.push("Arrangement failed to preserve melodic contour");
-        }
+    // 5. Main Melodic Identity (Order-aware LCS similarity over MIDI sequence)
+    const refMidi = refDna.fingerprint?.midiSequence || refDna.melody?.map(m => m.midi) || [];
+    const arrMidi = arrangedDna.fingerprint?.midiSequence || arrangedDna.melody?.map(m => m.midi) || [];
+    if (refMidi.length > 0) {
+      const lcs = computeLCS(refMidi, arrMidi);
+      const melodyRatio = lcs / refMidi.length;
+      if (melodyRatio < 0.3) {
+        errors.push("Arrangement failed to preserve the main melodic identity (order-aware sequence similarity too low)");
       }
     }
 
     // 6. Harmony check
-    if (refDna.harmony && refDna.harmony.length > 0) {
-      const refHarmonyCount = refDna.harmony.reduce((acc, h) => acc + h.chordSymbols.length, 0);
-      const arrHarmonyCount = arrangedDna.harmony.reduce((acc, h) => acc + h.chordSymbols.length, 0);
-      if (refHarmonyCount > 0 && arrHarmonyCount === 0) {
-        errors.push("Arrangement lost all harmony/chords present in the lead sheet");
-      }
+    const refHarmonyCount = (refDna.harmony || []).reduce((acc, h) => acc + h.chordSymbols.length, 0);
+    const arrHarmonyCount = (arrangedDna.harmony || []).reduce((acc, h) => acc + h.chordSymbols.length, 0);
+    if (refHarmonyCount > 0 && arrHarmonyCount === 0) {
+      errors.push("Arrangement lost harmony/chords present in the lead sheet");
     }
   }
   

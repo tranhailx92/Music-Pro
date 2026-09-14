@@ -102,7 +102,20 @@ async function runTests() {
     console.log("✅ Test 4: Network/API throw -> no fallback (call count = 1)");
   }
 
-  // Test 5: generateArrangement first invalid, second valid => fallback once
+  // Test 5: generateArrangement first valid => exactly 1 call
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      return { text: validXml } as any;
+    };
+
+    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    if (calls !== 1) throw new Error(`Test 5 failed: expected 1 call, got ${calls}`);
+    console.log("✅ Test 5: Arrangement first valid -> 1 call");
+  }
+
+  // Test 6: generateArrangement first invalid, second valid => fallback once (2 calls)
   {
     let calls = 0;
     const mockGenerate: GenerateFn = async (params) => {
@@ -114,8 +127,50 @@ async function runTests() {
     };
 
     const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
-    if (calls !== 2) throw new Error(`Test 5 failed: expected 2 calls for arrangement fallback, got ${calls}`);
-    console.log("✅ Test 5: Arrangement invalid -> fallback once (2 calls)");
+    if (calls !== 2) throw new Error(`Test 6 failed: expected 2 calls for arrangement fallback, got ${calls}`);
+    console.log("✅ Test 6: Arrangement invalid -> fallback once (2 calls)");
+  }
+
+  // Test 7: generateArrangement both invalid => MUSICXML_INVALID_AFTER_RETRY
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      return { text: invalidXml } as any;
+    };
+
+    let caughtError: any = null;
+    try {
+      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    } catch (err) {
+      caughtError = err;
+    }
+
+    if (!caughtError || caughtError.code !== "MUSICXML_INVALID_AFTER_RETRY") {
+      throw new Error(`Test 7 failed: expected MUSICXML_INVALID_AFTER_RETRY code, got ${JSON.stringify(caughtError)}`);
+    }
+    console.log("✅ Test 7: Arrangement both invalid -> MUSICXML_INVALID_AFTER_RETRY");
+  }
+
+  // Test 8: generateArrangement network throw on first call => no fallback (call count = 1)
+  {
+    let calls = 0;
+    const mockGenerate: GenerateFn = async (params) => {
+      calls++;
+      throw new Error("Arrangement network timeout");
+    };
+
+    let threw = false;
+    try {
+      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    } catch (err: any) {
+      threw = true;
+      if (calls !== 1) throw new Error(`Test 8 failed: expected 1 call before throw, got ${calls}`);
+      if (err.message !== "Arrangement network timeout") throw new Error(`Test 8 failed: unexpected error message: ${err.message}`);
+    }
+
+    if (!threw) throw new Error("Test 8 failed: expected error to be thrown");
+    console.log("✅ Test 8: Arrangement network throw -> no fallback (call count = 1)");
   }
 
   console.log("🚀 ALL COMPOSE ROUTING & RETRY TESTS PASSED");
