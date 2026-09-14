@@ -38,7 +38,7 @@ async function runTests() {
       return { text: validXml } as any;
     };
 
-    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     if (calls !== 1) throw new Error(`Test 1 failed: expected 1 call, got ${calls}`);
     if (!xml.includes("score-partwise")) throw new Error("Test 1 failed: invalid xml returned");
     console.log("✅ Test 1: First valid lead sheet -> 1 call");
@@ -55,7 +55,7 @@ async function runTests() {
       return { text: validXml } as any;
     };
 
-    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    const xml = await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     if (calls !== 2) throw new Error(`Test 2 failed: expected 2 calls, got ${calls}`);
     console.log("✅ Test 2: First invalid, second valid -> 2 calls (fallback)");
   }
@@ -70,7 +70,7 @@ async function runTests() {
 
     let caughtError: any = null;
     try {
-      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     } catch (err) {
       caughtError = err;
     }
@@ -91,7 +91,7 @@ async function runTests() {
 
     let threw = false;
     try {
-      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+      await generateLeadSheet("Compose prompt", [], "Meta plan", { vocalDirection: "Vocal", harmonyDirection: "Chords", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     } catch (err: any) {
       threw = true;
       if (calls !== 1) throw new Error(`Test 4 failed: expected 1 call before throw, got ${calls}`);
@@ -110,7 +110,7 @@ async function runTests() {
       return { text: validXml } as any;
     };
 
-    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     if (calls !== 1) throw new Error(`Test 5 failed: expected 1 call, got ${calls}`);
     console.log("✅ Test 5: Arrangement first valid -> 1 call");
   }
@@ -126,7 +126,7 @@ async function runTests() {
       return { text: validXml } as any;
     };
 
-    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+    const xml = await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     if (calls !== 2) throw new Error(`Test 6 failed: expected 2 calls for arrangement fallback, got ${calls}`);
     console.log("✅ Test 6: Arrangement invalid -> fallback once (2 calls)");
   }
@@ -141,7 +141,7 @@ async function runTests() {
 
     let caughtError: any = null;
     try {
-      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     } catch (err) {
       caughtError = err;
     }
@@ -162,7 +162,7 @@ async function runTests() {
 
     let threw = false;
     try {
-      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
+      await generateArrangement(validXml, "Arrange prompt", [], { vocalDirection: "Vocal", songForm: "short demo" }, "STYLE.VN.VPOP-BALLAD", mockGenerate);
     } catch (err: any) {
       threw = true;
       if (calls !== 1) throw new Error(`Test 8 failed: expected 1 call before throw, got ${calls}`);

@@ -71,6 +71,40 @@ if (validateMusicXML(invalidFirstNoteChordXML).isValid) {
 }
 console.log("✅ Invalid XML (first note has <chord/>) caught");
 
+// Duration tests
+const invalidNoDurationPitchedXML = validXML.replace('<duration>4</duration>', '');
+if (validateMusicXML(invalidNoDurationPitchedXML).isValid) {
+    throw new Error("Invalid XML (pitched note without <duration>) passed validation");
+}
+console.log("✅ Invalid XML (pitched note without <duration>) caught");
+
+const validRestDurationXML = validXML.replace(
+  '</measure>',
+  '  <note>\n        <rest/>\n        <duration>4</duration>\n        <type>whole</type>\n      </note>\n    </measure>'
+);
+if (!validateMusicXML(validRestDurationXML).isValid) {
+    throw new Error("Valid XML (rest with <duration>) failed validation");
+}
+console.log("✅ Valid XML (rest with <duration>) passed");
+
+const invalidNoDurationRestXML = validXML.replace(
+  '</measure>',
+  '  <note>\n        <rest/>\n        <type>whole</type>\n      </note>\n    </measure>'
+);
+if (validateMusicXML(invalidNoDurationRestXML).isValid) {
+    throw new Error("Invalid XML (rest without <duration>) passed validation");
+}
+console.log("✅ Invalid XML (rest without <duration>) caught");
+
+const validGraceXML = validXML.replace(
+  '<pitch><step>C</step><octave>4</octave></pitch>\n        <duration>4</duration>',
+  '<grace/>\n        <pitch><step>C</step><octave>4</octave></pitch>'
+);
+if (!validateMusicXML(validGraceXML).isValid) {
+    throw new Error("Valid XML (grace note without <duration>) failed validation");
+}
+console.log("✅ Valid XML (grace note without <duration>) passed");
+
 // Test Lead Sheet lyrics check
 const leadSheetNoLyrics = validXML;
 const vocalRequest = { vocalDirection: "Male Singer" };
@@ -134,7 +168,9 @@ const arrangedValid = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
-if (!validateArrangement(arrangedValid, refLeadSheet).isValid) {
+const mockDemoRequest = { songForm: "short demo" };
+
+if (!validateArrangement(arrangedValid, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 1 (same melody + orchestration) failed");
 }
 console.log("✅ Arrangement test 1 (same melody + orchestration) passed");
@@ -161,63 +197,63 @@ const arrangedDifferentMelody = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
-if (validateArrangement(arrangedDifferentMelody, refLeadSheet).isValid) {
+if (validateArrangement(arrangedDifferentMelody, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 2 (different melody) incorrectly passed");
 }
 console.log("✅ Arrangement test 2 (different melody) caught");
 
 // 3. Changed key/mode => FAIL
 const arrangedChangedKey = arrangedValid.replace('<fifths>0</fifths>', '<fifths>2</fifths>');
-if (validateArrangement(arrangedChangedKey, refLeadSheet).isValid) {
+if (validateArrangement(arrangedChangedKey, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 3 (changed key) incorrectly passed");
 }
 console.log("✅ Arrangement test 3 (changed key) caught");
 
 // 4. Changed meter => FAIL
 const arrangedChangedMeter = arrangedValid.replace('<beats>4</beats><beat-type>4</beat-type>', '<beats>3</beats><beat-type>4</beat-type>');
-if (validateArrangement(arrangedChangedMeter, refLeadSheet).isValid) {
+if (validateArrangement(arrangedChangedMeter, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 4 (changed meter) incorrectly passed");
 }
 console.log("✅ Arrangement test 4 (changed meter) caught");
 
 // 5. Changed initial BPM => FAIL
 const arrangedChangedBpm = arrangedValid.replace('tempo="120"', 'tempo="160"');
-if (validateArrangement(arrangedChangedBpm, refLeadSheet).isValid) {
+if (validateArrangement(arrangedChangedBpm, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 5 (changed BPM) incorrectly passed");
 }
 console.log("✅ Arrangement test 5 (changed BPM) caught");
 
 // 6. Removed main lyrics => FAIL
 const arrangedNoLyrics = arrangedValid.replace(/<lyric>.*?<\/lyric>/g, '');
-if (validateArrangement(arrangedNoLyrics, refLeadSheet).isValid) {
+if (validateArrangement(arrangedNoLyrics, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 6 (removed lyrics) incorrectly passed");
 }
 console.log("✅ Arrangement test 6 (removed lyrics) caught");
 
 // 7. Lost harmony => FAIL
 const arrangedNoHarmony = arrangedValid.replace(/<harmony>.*?<\/harmony>/g, '');
-if (validateArrangement(arrangedNoHarmony, refLeadSheet).isValid) {
+if (validateArrangement(arrangedNoHarmony, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 7 (lost harmony) incorrectly passed");
 }
 console.log("✅ Arrangement test 7 (lost harmony) caught");
 
 // 8. Removed <key> / mode metadata => FAIL
 const arrangedNoKey = arrangedValid.replace(/<key>[\s\S]*?<\/key>/g, '');
-if (validateArrangement(arrangedNoKey, refLeadSheet).isValid) {
+if (validateArrangement(arrangedNoKey, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 8 (removed key metadata) incorrectly passed");
 }
 console.log("✅ Arrangement test 8 (removed key metadata) caught");
 
 // 9. Removed <time> metadata => FAIL
 const arrangedNoTime = arrangedValid.replace(/<time>[\s\S]*?<\/time>/g, '');
-if (validateArrangement(arrangedNoTime, refLeadSheet).isValid) {
+if (validateArrangement(arrangedNoTime, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 9 (removed time metadata) incorrectly passed");
 }
 console.log("✅ Arrangement test 9 (removed time metadata) caught");
 
 // 10. Removed initial tempo metadata => FAIL
 const arrangedNoTempo = arrangedValid.replace(/<sound[^>]*tempo="[^"]*"\s*\/>|<sound[^>]*tempo="[^"]*"[^>]*>/g, '');
-if (validateArrangement(arrangedNoTempo, refLeadSheet).isValid) {
+if (validateArrangement(arrangedNoTempo, refLeadSheet, mockDemoRequest).isValid) {
   throw new Error("Arrangement test 10 (removed initial tempo metadata) incorrectly passed");
 }
 console.log("✅ Arrangement test 10 (removed initial tempo metadata) caught");

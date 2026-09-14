@@ -195,6 +195,7 @@ Output ONLY the MusicXML code.`;
     if (!validation.isValid) {
       const err: any = new Error(`Lead Sheet validation failed after retry: ${validation.errors.join(", ")}`);
       err.code = "MUSICXML_INVALID_AFTER_RETRY";
+      err.xml = xml;
       throw err;
     }
   }
@@ -221,6 +222,7 @@ KEEP lyrics, melodic identity, and harmony intent.
 CRITICAL XML RULES:
 - EVERY part must specify divisions, key, time, and appropriate clef (Vocal/Guitar/Strings = treble, Electric Bass = bass clef, Piano = grand staff treble + bass). Do NOT let Electric Bass C2 render in treble clef.
 - CHORD ENCODING: A <note> must have EXACTLY ONE <pitch> (or <rest>, or <unpitched>). To encode a chord (e.g. C-E-G), emit 3 separate <note> elements. The first has no <chord/> tag. The subsequent notes MUST have a <chord/> tag. Do NOT use <chord/> on the first note of a measure/voice/staff.
+- DURATION ENCODING: Never emit a normal <note> or <rest> without <duration>. <grace> notes are the only exception.
 - Unless the user explicitly asks for a short demo, ensure the arrangement covers the COMPLETE song form.
 Output ONLY final arranged MusicXML 4.0.`;
 
@@ -247,15 +249,16 @@ Output ONLY final arranged MusicXML 4.0.`;
   }
 
   let xml = await attempt(TEXT_MODEL);
-  let validation = validateArrangement(xml, leadSheetXml);
+  let validation = validateArrangement(xml, leadSheetXml, songRequest);
   
   if (!validation.isValid) {
     console.warn("Arrangement Attempt 1 failed validation. Retrying with fallback model...", validation.errors);
     xml = await attempt(FALLBACK_MODEL);
-    validation = validateArrangement(xml, leadSheetXml);
+    validation = validateArrangement(xml, leadSheetXml, songRequest);
     if (!validation.isValid) {
       const err: any = new Error(`Arrangement validation failed after retry: ${validation.errors.join(", ")}`);
       err.code = "MUSICXML_INVALID_AFTER_RETRY";
+      err.xml = xml;
       throw err;
     }
   }

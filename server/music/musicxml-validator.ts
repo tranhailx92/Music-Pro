@@ -72,6 +72,15 @@ export function validateMusicXML(xml: string): MusicXMLValidationResult {
               if (!Array.isArray(n.pitch) && n.pitch && n.pitch.step && n.pitch.octave !== undefined) {
                 hasPitchedNote = true;
               }
+              
+              const isGrace = n.grace !== undefined;
+              if (!isGrace) {
+                if (n.duration === undefined) {
+                  errors.push("Invalid MusicXML: Normal note or rest missing <duration>.");
+                } else if (isNaN(Number(n.duration)) || Number(n.duration) <= 0) {
+                  errors.push("Invalid MusicXML: Normal note or rest must have a positive <duration>.");
+                }
+              }
             }
           }
         }
@@ -109,6 +118,12 @@ export function validateLeadSheet(xml: string, songRequest?: any): MusicXMLValid
     errors.push("Lead sheet missing <harmony> (chords) required by song request");
   }
 
+  // 3. Completeness check
+  const isDemo = songRequest?.songForm?.toLowerCase().includes("short") || songRequest?.songForm?.toLowerCase().includes("demo") || songRequest?.songForm?.toLowerCase().includes("sketch");
+  if (!isDemo && dna.musical.approximateDuration && dna.musical.approximateDuration < 150) {
+    errors.push(`Lead sheet too short (${Math.round(dna.musical.approximateDuration)} seconds). Complete songs must be at least 150 seconds.`);
+  }
+
   return {
     isValid: errors.length === 0,
     errors
@@ -132,7 +147,7 @@ function computeLCS(seq1: number[], seq2: number[]): number {
   return dp[m][n];
 }
 
-export function validateArrangement(xml: string, referenceLeadSheetXml?: string): MusicXMLValidationResult {
+export function validateArrangement(xml: string, referenceLeadSheetXml?: string, songRequest?: any): MusicXMLValidationResult {
   const baseResult = validateMusicXML(xml);
   if (!baseResult.isValid) return baseResult;
 
@@ -215,6 +230,12 @@ export function validateArrangement(xml: string, referenceLeadSheetXml?: string)
     }
   }
   
+  // 7. Completeness check
+  const isDemo = songRequest?.songForm?.toLowerCase().includes("short") || songRequest?.songForm?.toLowerCase().includes("demo") || songRequest?.songForm?.toLowerCase().includes("sketch");
+  if (!isDemo && arrangedDna.musical.approximateDuration && arrangedDna.musical.approximateDuration < 150) {
+    errors.push(`Arrangement too short (${Math.round(arrangedDna.musical.approximateDuration)} seconds). Complete songs must be at least 150 seconds.`);
+  }
+
   return {
     isValid: errors.length === 0,
     errors
