@@ -19,8 +19,8 @@ import { db } from './lib/firebase';
 const MainContent = () => {
   const { currentView } = useNavigation();
   const online = useOnlineStatus();
-  // Core product screens are local-first. Only Knowledge/Improver remain cloud-backed in V1.
-  const needsFirebase = ['knowledge', 'upgrade'].includes(currentView);
+  // Canonical Knowledge now reads docs/m-guide through the server API. Only Improver remains Firebase-backed.
+  const needsFirebase = currentView === 'upgrade';
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col">
       {!online && (

@@ -37,6 +37,11 @@ const resolveKnowledgeDir = () => {
 
 const BASE_DIR = resolveKnowledgeDir();
 
+/** Canonical docs/m-guide directory used by the Composer and Knowledge UI. */
+export function getKnowledgeBaseDir(): string {
+  return BASE_DIR;
+}
+
 export function getCatalog(): Catalog {
   const catalogPath = path.join(BASE_DIR, "catalog.yml");
   if (!fs.existsSync(catalogPath)) {
@@ -56,7 +61,7 @@ export function getKnowledgeDoc(docPath: string): string {
   // Prevent arbitrary path access
   const normalizedPath = path.normalize(docPath).replace(/^(\.\.(\/|\\|$))+/, '');
   const relativePath = normalizedPath.startsWith("docs/m-guide/") 
-    ? normalizedPath.replace("docs/m-guide/", "") 
+    ? normalizedPath.replace("docs/m-guide/", "")
     : normalizedPath;
     
   const fullPath = path.join(BASE_DIR, relativePath);

@@ -4,6 +4,20 @@ export interface KnowledgeDoc {
   category: string;
   content: string;
   updatedAt: number;
+  source?: 'canonical' | 'custom';
+  path?: string;
+  tags?: string[];
+  servesSteps?: number[];
+  summary?: string;
+  readOnly?: boolean;
+}
+
+export interface KnowledgeCatalog {
+  version: string;
+  updated: string;
+  documentCount: number;
+  writable: boolean;
+  documents: KnowledgeDoc[];
 }
 
 export interface CompositionRun {

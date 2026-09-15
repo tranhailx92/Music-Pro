@@ -16,6 +16,12 @@ import {
 } from "./server/music/section-revision";
 
 import { getCatalog, getStyleInfo } from "./server/projectmusic/knowledge";
+import {
+  getCanonicalKnowledgeCatalog,
+  getCanonicalKnowledgeDocument,
+  listCanonicalKnowledgeDocuments,
+  saveCanonicalKnowledgeDocument,
+} from "./server/projectmusic/knowledge-admin";
 
 dotenv.config();
 
@@ -47,6 +53,48 @@ async function startServer() {
       lyriaEnabled: process.env.LYRIA_ENABLED === 'true',
       textModel: process.env.TEXT_MODEL || 'gemini-3.5-flash-lite'
     });
+  });
+
+  app.get("/api/knowledge/catalog", (_req, res) => {
+    try {
+      res.json(getCanonicalKnowledgeCatalog());
+    } catch (error: any) {
+      console.error("Knowledge catalog error:", error);
+      res.status(500).json({ error: { code: 'KNOWLEDGE_CATALOG_FAILED', message: error.message || 'Không thể tải catalog tri thức.' } });
+    }
+  });
+
+  app.get("/api/knowledge/all", (_req, res) => {
+    try {
+      res.json({ documents: listCanonicalKnowledgeDocuments(true) });
+    } catch (error: any) {
+      console.error("Knowledge load error:", error);
+      res.status(500).json({ error: { code: 'KNOWLEDGE_LOAD_FAILED', message: error.message || 'Không thể tải kho tri thức.' } });
+    }
+  });
+
+  app.get("/api/knowledge/document/:id", (req, res) => {
+    try {
+      const document = getCanonicalKnowledgeDocument(req.params.id);
+      if (!document) return res.status(404).json({ error: { code: 'KNOWLEDGE_NOT_FOUND', message: `Không tìm thấy tài liệu ${req.params.id}` } });
+      res.json(document);
+    } catch (error: any) {
+      console.error("Knowledge document error:", error);
+      res.status(500).json({ error: { code: 'KNOWLEDGE_LOAD_FAILED', message: error.message || 'Không thể tải tài liệu.' } });
+    }
+  });
+
+  app.put("/api/knowledge/document/:id", (req, res) => {
+    try {
+      const content = req.body?.content;
+      const document = saveCanonicalKnowledgeDocument(req.params.id, content);
+      res.json(document);
+    } catch (error: any) {
+      const code = error?.code || 'KNOWLEDGE_SAVE_FAILED';
+      const status = code === 'KNOWLEDGE_NOT_FOUND' ? 404 : code === 'KNOWLEDGE_READ_ONLY' ? 403 : code === 'INVALID_KNOWLEDGE_CONTENT' ? 400 : 500;
+      if (status >= 500) console.error("Knowledge save error:", error);
+      res.status(status).json({ error: { code, message: error.message || 'Không thể lưu tài liệu.' } });
+    }
   });
 
   app.post("/api/music/blueprint", (req, res) => {

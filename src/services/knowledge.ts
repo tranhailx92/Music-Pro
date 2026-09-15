@@ -1,72 +1,52 @@
-import { db } from '../lib/firebase';
-import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
-export type { KnowledgeDoc } from '../types';
-import { KnowledgeDoc } from '../types';
+import type { KnowledgeCatalog, KnowledgeDoc } from '../types';
+export type { KnowledgeCatalog, KnowledgeDoc } from '../types';
 
-const COLLECTION_NAME = 'knowledge_docs';
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  if (!response.ok) {
+    const message = payload?.error?.message || payload?.error || `Knowledge API failed (${response.status})`;
+    throw new Error(message);
+  }
+  return payload as T;
+}
 
 export const knowledgeService = {
+  async getCatalog(): Promise<KnowledgeCatalog> {
+    const response = await fetch('/api/knowledge/catalog');
+    return parseApiResponse<KnowledgeCatalog>(response);
+  },
+
   async getAllDocs(): Promise<KnowledgeDoc[]> {
-    if (!db) return [];
-    try {
-      const q = query(collection(db, COLLECTION_NAME), orderBy('category'));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as KnowledgeDoc));
-    } catch (e) {
-      console.error("Error fetching docs", e);
-      return [];
-    }
+    const response = await fetch('/api/knowledge/all');
+    const payload = await parseApiResponse<{ documents: KnowledgeDoc[] }>(response);
+    return payload.documents;
   },
 
   async getDocById(id: string): Promise<KnowledgeDoc | null> {
-    if (!db) return null;
-    const docRef = doc(db, COLLECTION_NAME, id.replace(/\//g, '_'));
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return { id: snap.id, ...snap.data() } as KnowledgeDoc;
-    }
-    return null;
+    const response = await fetch(`/api/knowledge/document/${encodeURIComponent(id)}`);
+    if (response.status === 404) return null;
+    return parseApiResponse<KnowledgeDoc>(response);
   },
 
-  async saveDoc(docData: Omit<KnowledgeDoc, 'updatedAt'>): Promise<void> {
-    if (!db) return;
-    const safeId = docData.id.replace(/\//g, '_');
-    const docRef = doc(db, COLLECTION_NAME, safeId);
-    await setDoc(docRef, {
-      ...docData,
-      id: docData.id,
-      updatedAt: Date.now()
-    }, { merge: true });
+  async saveDoc(docData: Omit<KnowledgeDoc, 'updatedAt'>): Promise<KnowledgeDoc> {
+    const response = await fetch(`/api/knowledge/document/${encodeURIComponent(docData.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: docData.content }),
+    });
+    return parseApiResponse<KnowledgeDoc>(response);
   },
 
-  async deleteDoc(id: string): Promise<void> {
-    if (!db) return;
-    const safeId = id.replace(/\//g, '_');
-    const docRef = doc(db, COLLECTION_NAME, safeId);
-    await deleteDoc(docRef);
+  async deleteDoc(_id: string): Promise<void> {
+    throw new Error('Kho canonical không hỗ trợ xóa tài liệu từ giao diện. Hãy cập nhật catalog trong repository nếu cần thay đổi cấu trúc.');
   },
-  
+
   async seedInitialDocsIfEmpty(): Promise<void> {
-    const docs = await this.getAllDocs();
-    if (docs.length === 0) {
-      await this.saveDoc({
-        id: 'for-ai',
-        title: 'For AI - System Instructions',
-        category: 'core',
-        content: '# Core Directives\n1. You are a professional Vietnamese music composer AI.\n2. Always output valid MusicXML 4.0.'
-      });
-      await this.saveDoc({
-        id: 'catalog',
-        title: 'Catalog Index',
-        category: 'core',
-        content: 'knowledge/melody: Principles of Vietnamese melody\nknowledge/styles: V-Pop, Bolero'
-      });
-      await this.saveDoc({
-        id: 'knowledge_styles',
-        title: 'Music Styles',
-        category: 'knowledge',
-        content: '# V-Pop Ballad\nTempo: 70-85 BPM.\nInstruments: Piano, Acoustic Guitar, Strings.'
-      });
-    }
-  }
+    // No-op. docs/m-guide is the canonical source; placeholder seed documents are intentionally disabled.
+  },
 };
