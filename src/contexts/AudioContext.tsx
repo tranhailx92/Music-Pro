@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ScorePlaybackEngine } from '../audio/playback-engine';
+import { HtmlMediaPlaybackEngine } from '../audio/media-playback-engine';
 import { parseMusicXMLToTimeline } from '../music/score-timeline';
 
 interface AudioState {
@@ -23,7 +23,7 @@ interface AudioContextType extends AudioState {
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const engineRef = useRef<ScorePlaybackEngine | null>(null);
+  const engineRef = useRef<HtmlMediaPlaybackEngine | null>(null);
   const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -33,7 +33,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [hasTrack, setHasTrack] = useState(false);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
 
-  if (!engineRef.current) engineRef.current = new ScorePlaybackEngine();
+  if (!engineRef.current) engineRef.current = new HtmlMediaPlaybackEngine();
 
   const stopTimer = useCallback(() => {
     if (timerRef.current !== null) window.clearInterval(timerRef.current);
@@ -77,18 +77,23 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   ) => {
     const engine = engineRef.current;
     if (!engine) return;
+
     const timeline = parseMusicXMLToTimeline(xml);
-    engine.load(timeline);
+    const resolvedTrackId = trackId || `${title || timeline.title || 'score'}:${xml.length}`;
+    await engine.load(timeline, resolvedTrackId);
+
     setCurrentTrackTitle(title || timeline.title || 'Bản nhạc Music-Pro');
     setCurrentTrackArtist(artist);
     setDuration(timeline.totalDurationSeconds);
-    setProgress(0);
+    setProgress(engine.getPosition());
     setHasTrack(true);
-    setCurrentTrackId(trackId || null);
+    setCurrentTrackId(resolvedTrackId);
     setIsPlaying(false);
+
     if (autoPlay) {
       await engine.play(0);
       setIsPlaying(engine.isPlaying);
+      setProgress(engine.getPosition());
     }
   }, []);
 

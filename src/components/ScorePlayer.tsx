@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Download, FileAudio, FileMusic, Loader2, Pause, Play, Square } from 'lucide-react';
 import { renderTimelineToWavBlob } from '../audio/offline-render';
 import { useAudio } from '../contexts/AudioContext';
@@ -50,9 +50,9 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
 }) => {
   const audio = useAudio();
   const [renderingWav, setRenderingWav] = useState(false);
+  const [preparingAudio, setPreparingAudio] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const trackId = useMemo(() => scoreTrackId(xmlContent), [xmlContent]);
-  const previousTrackIdRef = useRef(trackId);
   const timelineResult = useMemo(() => {
     try {
       return { timeline: parseMusicXMLToTimeline(xmlContent), error: null as string | null };
@@ -68,13 +68,26 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
   const base = sanitizeFilename(filenameBase || title || timeline?.title || 'music-pro-song');
 
   useEffect(() => {
-    const previousTrackId = previousTrackIdRef.current;
-    if (previousTrackId !== trackId && audio.currentTrackId === previousTrackId && timeline) {
-      void audio
-        .loadMusicXml(xmlContent, title || timeline.title || 'Music-Pro', artist, false, trackId)
-        .catch((cause: any) => setError(cause?.message || 'Không thể nạp lại bản nhạc sau khi chỉnh sửa.'));
+    let cancelled = false;
+    if (!timeline || audio.currentTrackId === trackId) {
+      setPreparingAudio(false);
+      return;
     }
-    previousTrackIdRef.current = trackId;
+
+    setPreparingAudio(true);
+    setError(null);
+    void audio
+      .loadMusicXml(xmlContent, title || timeline.title || 'Music-Pro', artist, false, trackId)
+      .catch((cause: any) => {
+        if (!cancelled) setError(cause?.message || 'Không thể chuẩn bị âm thanh để phát.');
+      })
+      .finally(() => {
+        if (!cancelled) setPreparingAudio(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [artist, audio.currentTrackId, audio.loadMusicXml, timeline, title, trackId, xmlContent]);
 
   useEffect(() => {
@@ -153,10 +166,17 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handlePlayPause}
-            className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200"
+            disabled={preparingAudio}
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-bold text-black hover:bg-zinc-200 disabled:cursor-wait disabled:opacity-60"
           >
-            {active && audio.isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-            {active && audio.isPlaying ? 'Tạm dừng' : 'Nghe bản nhạc'}
+            {preparingAudio ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : active && audio.isPlaying ? (
+              <Pause className="w-4 h-4" />
+            ) : (
+              <Play className="w-4 h-4 fill-current" />
+            )}
+            {preparingAudio ? 'Đang chuẩn bị…' : active && audio.isPlaying ? 'Tạm dừng' : 'Nghe bản nhạc'}
           </button>
           <button
             onClick={handleStop}
