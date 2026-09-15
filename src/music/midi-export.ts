@@ -1,4 +1,5 @@
 import type { ScorePartTimeline, ScoreTimeline } from './score-timeline';
+import { resolveMidiProgram } from './instrument-program';
 
 const DEFAULT_PPQ = 480;
 
@@ -136,7 +137,7 @@ function buildPartTrack(part: ScorePartTimeline, partIndex: number, ppq: number)
   ];
 
   if (channel !== 9) {
-    const program = Math.max(0, Math.min(127, (part.midiProgram || 1) - 1));
+    const program = Math.max(0, Math.min(127, resolveMidiProgram(part) - 1));
     events.push({ tick: 0, priority: 1, bytes: [0xc0 | channel, program] });
   }
 

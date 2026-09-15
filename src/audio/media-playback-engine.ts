@@ -32,10 +32,10 @@ function clampPosition(seconds: number, duration: number): number {
 /**
  * Reliable score-preview transport backed by an HTMLAudioElement.
  *
- * The score is rendered once with OfflineAudioContext, then played through the
- * browser's native media pipeline. This intentionally avoids direct Web Audio
- * destination playback, which can advance AudioContext.currentTime while still
- * remaining inaudible in some iOS / embedded-preview environments.
+ * The score is rendered once to a WAV Blob, then played through the browser's
+ * native media pipeline. The renderer now prefers General MIDI SoundFont
+ * samples and automatically falls back to the lightweight synth when the
+ * sampled bank cannot be loaded.
  */
 export class HtmlMediaPlaybackEngine {
   private readonly media: MediaElementLike;
@@ -50,9 +50,10 @@ export class HtmlMediaPlaybackEngine {
   constructor(options: HtmlMediaPlaybackEngineOptions = {}) {
     this.media = options.createMedia?.() ?? new Audio();
     this.renderPreview = options.renderPreview ?? ((timeline) => renderTimelineToWavBlob(timeline, {
-      sampleRate: 24000,
-      channels: 1,
-      tailSeconds: 0.25,
+      sampleRate: 32000,
+      channels: 2,
+      tailSeconds: 0.75,
+      quality: 'auto',
     }));
     this.createObjectURL = options.createObjectURL ?? ((blob) => URL.createObjectURL(blob));
     this.revokeObjectURL = options.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url));

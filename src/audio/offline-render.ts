@@ -1,14 +1,19 @@
 import type { ScoreTimeline } from '../music/score-timeline';
 import { quarterToSeconds } from '../music/score-timeline';
+import { renderWithAudioFallback, type AudioRenderQuality } from './render-policy';
+import { renderTimelineWithSoundFont } from './soundfont-render';
 import { scheduleSynthNote } from './synth';
 
 export interface WavRenderOptions {
   sampleRate?: number;
   channels?: 1 | 2;
   tailSeconds?: number;
+  quality?: AudioRenderQuality;
+  soundFontUrl?: string;
 }
 
-export async function renderTimelineToWavBlob(
+/** Existing lightweight deterministic renderer kept as a resilient fallback. */
+export async function renderTimelineToBasicWavBlob(
   timeline: ScoreTimeline,
   options: WavRenderOptions = {},
 ): Promise<Blob> {
@@ -46,6 +51,32 @@ export async function renderTimelineToWavBlob(
 
   const audioBuffer = await context.startRendering();
   return audioBufferToWavBlob(audioBuffer);
+}
+
+/**
+ * Product renderer: sampled SoundFont first, lightweight synth as automatic
+ * fallback. Callers keep the same Blob interface so live playback remains on
+ * the reliable HTMLAudioElement path introduced for iPad embedded previews.
+ */
+export async function renderTimelineToWavBlob(
+  timeline: ScoreTimeline,
+  options: WavRenderOptions = {},
+): Promise<Blob> {
+  const quality = options.quality || 'auto';
+  const result = await renderWithAudioFallback(
+    quality,
+    () => renderTimelineWithSoundFont(timeline, {
+      sampleRate: options.sampleRate,
+      tailSeconds: options.tailSeconds,
+      soundFontUrl: options.soundFontUrl,
+    }),
+    () => renderTimelineToBasicWavBlob(timeline, options),
+  );
+
+  if (result.renderer === 'basic' && result.fallbackError) {
+    console.warn('SoundFont preview unavailable; using basic renderer.', result.fallbackError);
+  }
+  return result.value;
 }
 
 export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
