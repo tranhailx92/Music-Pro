@@ -7,7 +7,7 @@ import { db } from '../lib/firebase';
 import { filterAndSortProjects, type ProjectSort } from '../projects/project-list-utils';
 import { projectService } from '../projects/project-service';
 import { activeRevision } from '../projects/revision-utils';
-import type { MusicProjectBundle, MusicProjectSummary } from '../projects/types';
+import type { MusicProjectBundle, MusicProjectSummary, RevisionReason } from '../projects/types';
 import { runsService, type CompositionRun } from '../services/runs';
 import { productErrorText } from '../utils/product-errors';
 
@@ -140,7 +140,7 @@ export const RunsView: React.FC = () => {
               filenameBase={selected.project.title}
               projectBundle={selected}
               onProjectChange={bundle => void saveBundle(bundle)}
-              onChangeXml={async (nextXml, reason = 'edit', label = 'Chỉnh sửa') => {
+              onChangeXml={async (nextXml, reason: RevisionReason = 'edit', label = 'Chỉnh sửa') => {
                 try {
                   const next = await projectService.appendRevision(selected, { musicXml: nextXml, reason, label });
                   await saveBundle(next);

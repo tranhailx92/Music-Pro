@@ -43,7 +43,7 @@ export const ComposeView: React.FC = () => {
   const autosaveRef = useRef<AutosaveController<MusicProjectBundle> | null>(null);
 
   if (!autosaveRef.current) {
-    autosaveRef.current = createAutosaveController({
+    autosaveRef.current = createAutosaveController<MusicProjectBundle>({
       delayMs: 700,
       save: bundle => projectService.saveProject(bundle),
       onError: cause => { setSaveState('dirty'); addToast(productErrorText(cause, 'Không thể tự động lưu dự án.')); },
