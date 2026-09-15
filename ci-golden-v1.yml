@@ -1,0 +1,66 @@
+name: Music-Pro targeted CI
+
+on:
+  push:
+    branches:
+      - chatgpt/ci-golden-v1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GEMINI_API_KEY: ci-not-used
+      LYRIA_ENABLED: "false"
+      TEXT_MODEL: gemini-3.5-flash-lite
+      TEXT_FALLBACK_MODEL: gemini-3.5-flash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Composer routing tests
+        run: npx tsx tests/music/compose-routing.test.ts
+
+      - name: MusicXML validator tests
+        run: npx tsx tests/music/musicxml-validation.test.ts
+
+      - name: TypeScript typecheck
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Verify production artifacts
+        run: |
+          test -f dist/server.cjs
+          test -f dist/docs/m-guide/catalog.yml
+
+      - name: Production health smoke
+        run: |
+          set -euo pipefail
+          PORT=43117 NODE_ENV=production node dist/server.cjs > /tmp/music-pro-server.log 2>&1 &
+          PID=$!
+          trap 'kill $PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:43117/api/health > /tmp/music-pro-health.json; then
+              cat /tmp/music-pro-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Health endpoint did not become ready"
+          cat /tmp/music-pro-server.log || true
+          exit 1
