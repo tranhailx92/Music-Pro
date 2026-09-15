@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { ScorePlaybackEngine } from '../audio/playback-engine';
+import { parseMusicXMLToTimeline } from '../music/score-timeline';
 
 interface AudioState {
   isPlaying: boolean;
@@ -6,70 +8,131 @@ interface AudioState {
   duration: number;
   currentTrackTitle: string;
   currentTrackArtist: string;
+  hasTrack: boolean;
+  currentTrackId: string | null;
 }
 
 interface AudioContextType extends AudioState {
-  togglePlay: () => void;
-  seek: (value: number) => void;
+  togglePlay: () => Promise<void>;
+  seek: (value: number) => Promise<void>;
+  stop: () => void;
   setTrack: (title: string, artist: string) => void;
+  loadMusicXml: (xml: string, title: string, artist?: string, autoPlay?: boolean, trackId?: string) => Promise<void>;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const engineRef = useRef<ScorePlaybackEngine | null>(null);
+  const timerRef = useRef<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(180); // Mock duration: 3:00
+  const [duration, setDuration] = useState(0);
   const [currentTrackTitle, setCurrentTrackTitle] = useState('Chưa có bài hát');
   const [currentTrackArtist, setCurrentTrackArtist] = useState('Chọn một bản nhạc để phát');
-  
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [hasTrack, setHasTrack] = useState(false);
+  const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
 
-  const togglePlay = () => {
-    setIsPlaying(!isPlaying);
-  };
+  if (!engineRef.current) engineRef.current = new ScorePlaybackEngine();
 
-  const seek = (value: number) => {
-    setProgress(value);
-  };
+  const stopTimer = useCallback(() => {
+    if (timerRef.current !== null) window.clearInterval(timerRef.current);
+    timerRef.current = null;
+  }, []);
 
-  const setTrack = (title: string, artist: string) => {
-    setCurrentTrackTitle(title);
-    setCurrentTrackArtist(artist);
-    setProgress(0);
-    setIsPlaying(true);
-  };
+  const pollProgress = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const next = engine.getPosition();
+    setProgress(next);
+    if (!engine.isPlaying || next >= engine.duration) {
+      setIsPlaying(false);
+      stopTimer();
+    }
+  }, [stopTimer]);
 
   useEffect(() => {
     if (isPlaying) {
-      timerRef.current = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= duration) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
+      stopTimer();
+      timerRef.current = window.setInterval(pollProgress, 100);
+    } else {
+      stopTimer();
     }
+    return stopTimer;
+  }, [isPlaying, pollProgress, stopTimer]);
 
+  useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      stopTimer();
+      engineRef.current?.dispose();
     };
-  }, [isPlaying, duration]);
+  }, [stopTimer]);
+
+  const loadMusicXml = useCallback(async (
+    xml: string,
+    title: string,
+    artist = 'Music-Pro Score Preview',
+    autoPlay = false,
+    trackId?: string,
+  ) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const timeline = parseMusicXMLToTimeline(xml);
+    engine.load(timeline);
+    setCurrentTrackTitle(title || timeline.title || 'Bản nhạc Music-Pro');
+    setCurrentTrackArtist(artist);
+    setDuration(timeline.totalDurationSeconds);
+    setProgress(0);
+    setHasTrack(true);
+    setCurrentTrackId(trackId || null);
+    setIsPlaying(false);
+    if (autoPlay) {
+      await engine.play(0);
+      setIsPlaying(engine.isPlaying);
+    }
+  }, []);
+
+  const togglePlay = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || !hasTrack) return;
+    await engine.toggle();
+    setIsPlaying(engine.isPlaying);
+    setProgress(engine.getPosition());
+  }, [hasTrack]);
+
+  const seek = useCallback(async (value: number) => {
+    const engine = engineRef.current;
+    if (!engine || !hasTrack) return;
+    await engine.seek(value);
+    setProgress(engine.getPosition());
+    setIsPlaying(engine.isPlaying);
+  }, [hasTrack]);
+
+  const stop = useCallback(() => {
+    engineRef.current?.stop();
+    setProgress(0);
+    setIsPlaying(false);
+  }, []);
+
+  const setTrack = useCallback((title: string, artist: string) => {
+    setCurrentTrackTitle(title);
+    setCurrentTrackArtist(artist);
+  }, []);
 
   return (
-    <AudioContext.Provider value={{ 
-      isPlaying, 
-      progress, 
-      duration, 
-      currentTrackTitle, 
+    <AudioContext.Provider value={{
+      isPlaying,
+      progress,
+      duration,
+      currentTrackTitle,
       currentTrackArtist,
-      togglePlay, 
+      hasTrack,
+      currentTrackId,
+      togglePlay,
       seek,
-      setTrack
+      stop,
+      setTrack,
+      loadMusicXml,
     }}>
       {children}
     </AudioContext.Provider>
@@ -78,8 +141,6 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
 export const useAudio = () => {
   const context = useContext(AudioContext);
-  if (context === undefined) {
-    throw new Error('useAudio must be used within an AudioProvider');
-  }
+  if (context === undefined) throw new Error('useAudio must be used within an AudioProvider');
   return context;
 };

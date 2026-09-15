@@ -13,7 +13,16 @@ export interface CompositionRun {
   metaPrompt: string;
   composePrompt: string;
   arrangePrompt: string;
+  /** Backward-compatible final score field used by existing records. */
   musicXml: string;
+  /** Optional original Step-3 master score for future revisions. */
+  leadMusicXml?: string;
+  /** Optional explicit Step-4 final score; falls back to musicXml for older records. */
+  finalMusicXml?: string;
+  title?: string;
+  durationSeconds?: number;
+  version?: number;
+  parentRevisionId?: string;
   status: 'draft' | 'completed' | 'failed';
   createdAt: any;
 }

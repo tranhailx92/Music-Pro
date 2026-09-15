@@ -18,7 +18,8 @@ import { db } from './lib/firebase';
 
 const MainContent = () => {
   const { currentView } = useNavigation();
-  const needsFirebase = ['compose', 'knowledge', 'runs', 'upgrade', 'demo'].includes(currentView);
+  // Composer is intentionally usable without Firebase. Persistence/history remains optional.
+  const needsFirebase = ['knowledge', 'runs', 'upgrade', 'demo'].includes(currentView);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 relative h-full">
