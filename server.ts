@@ -7,6 +7,13 @@ import { extractSongDNA } from "./server/music/song-dna";
 import { buildProductionBlueprint } from "./server/music/production-blueprint";
 import { buildGeminiMusicBrief, buildLyriaPrompt } from "./server/music/gemini-music-brief";
 import { prepareComposition, generateLeadSheet, generateArrangement } from "./server/music/composer";
+import { validateMusicXML } from "./server/music/musicxml-validator";
+import {
+  buildSectionRevisionContext,
+  classifySectionProviderError,
+  mergeSectionReplacement,
+  SectionRevisionError,
+} from "./server/music/section-revision";
 
 import { getCatalog, getStyleInfo } from "./server/projectmusic/knowledge";
 
@@ -15,6 +22,12 @@ dotenv.config();
 function getStyleDisplayName(styleId: string): string {
   const info = getStyleInfo(styleId);
   return info ? info.displayName : styleId;
+}
+
+function extractSectionRevisionXml(text: string): string {
+  const match = text.match(/<section-revision\b[\s\S]*?<\/section-revision\s*>/i);
+  if (!match) throw new SectionRevisionError('SECTION_MERGE_FAILED', 'AI không trả về section-revision hợp lệ.');
+  return match[0];
 }
 
 async function startServer() {
@@ -160,6 +173,68 @@ async function startServer() {
       console.error("Arrange error:", error);
       const code = error.code || 'ARRANGEMENT_FAILED';
       res.status(500).json({ error: { code, message: error.message } });
+    }
+  });
+
+  app.post("/api/compose/revise-section", async (req, res) => {
+    try {
+      const { musicXml, startMeasure, endMeasure, instruction, styleId } = req.body || {};
+      if (!musicXml || typeof musicXml !== 'string' || !instruction || typeof instruction !== 'string') {
+        return res.status(400).json({ error: { code: 'SECTION_MERGE_FAILED', message: 'Thiếu MusicXML hoặc yêu cầu chỉnh sửa.' } });
+      }
+
+      const initialValidation = validateMusicXML(musicXml);
+      if (!initialValidation.isValid) {
+        return res.status(400).json({ error: { code: 'INVALID_MUSICXML', message: initialValidation.errors.join('; ') } });
+      }
+
+      const context = buildSectionRevisionContext({
+        musicXml,
+        startMeasure: Number(startMeasure),
+        endMeasure: Number(endMeasure),
+        instruction,
+        styleId: styleId || 'STYLE.VN.VPOP-BALLAD',
+      });
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: { code: 'PROVIDER_UNAVAILABLE', message: 'API Key is not configured.' } });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+      const model = process.env.TEXT_MODEL || 'gemini-3.5-flash-lite';
+      const response = await ai.models.generateContent({
+        model,
+        contents: [{ parts: [{ text: context.prompt }] }],
+        config: {
+          systemInstruction: context.systemInstruction,
+          temperature: 0.35
+        }
+      });
+
+      const replacement = extractSectionRevisionXml(response.text || '');
+      const mergedXml = mergeSectionReplacement(musicXml, replacement, Number(startMeasure), Number(endMeasure));
+      const validation = validateMusicXML(mergedXml);
+      if (!validation.isValid) {
+        return res.status(422).json({ error: { code: 'SECTION_MERGE_FAILED', message: validation.errors.join('; ') } });
+      }
+
+      res.json({ xml: mergedXml, model });
+    } catch (error: any) {
+      if (error instanceof SectionRevisionError) {
+        const status = error.code === 'INVALID_MUSICXML' ? 400 : 422;
+        return res.status(status).json({ error: { code: error.code, message: error.message } });
+      }
+      console.error("Section revision error:", error);
+      const classified = classifySectionProviderError(error);
+      res.status(classified.status).json({ error: { code: classified.code, message: classified.message } });
     }
   });
 

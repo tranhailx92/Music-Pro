@@ -1,110 +1,38 @@
 import React, { useState } from 'react';
-import { Database, Play, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { knowledgeService } from '../services/knowledge';
-import { runsService } from '../services/runs';
-import { upgradesService } from '../services/upgrades';
-import { useToast } from '../hooks/useToast';
+import { CheckCircle, Database, Loader2, Music2 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { settingsService } from '../services/settings';
-
-const DEMO_XML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE score-partwise PUBLIC
-    "-//Recordare//DTD MusicXML 4.0 Partwise//EN"
-    "http://www.musicxml.org/dtds/partwise.dtd">
-<score-partwise version="4.0">
-  <part-list>
-    <score-part id="P1">
-      <part-name>Demo Piano</part-name>
-    </score-part>
-  </part-list>
-  <part id="P1">
-    <measure number="1">
-      <attributes>
-        <divisions>1</divisions>
-        <key><fifths>0</fifths></key>
-        <time><beats>4</beats><beat-type>4</beat-type></time>
-        <clef><sign>G</sign><line>2</line></clef>
-      </attributes>
-      <note>
-        <pitch><step>C</step><octave>4</octave></pitch>
-        <duration>4</duration>
-        <type>whole</type>
-      </note>
-    </measure>
-  </part>
-</score-partwise>`;
+import { createMultiInstrumentDemoProject } from '../demo/multi-instrument-demo';
+import { useNavigation } from '../hooks/useNavigation';
+import { useToast } from '../hooks/useToast';
+import { projectService } from '../projects/project-service';
+import { productErrorText } from '../utils/product-errors';
 
 export const DemoDataView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { addToast } = useToast();
+  const { navigate } = useNavigation();
 
-  const handleSeed = async () => {
+  const createDemo = async () => {
     setLoading(true);
     try {
-      // 1. Seed a Demo Run (Testing Composition Workflow)
-      const runId = await runsService.saveRun({
-        idea: 'Bản ballad V-Pop nhẹ nhàng (Workflow Test)',
-        style: 'V-Pop Ballad',
-        metaPrompt: 'Tạo một bản nhạc ballad phong cách Việt Nam hiện đại.',
-        composePrompt: 'Tạo lead sheet cho bài hát ballad.',
-        arrangePrompt: 'Phối khí với Piano và Strings.',
-        musicXml: DEMO_XML,
-        status: 'completed'
-      });
-
-      addToast('Đã khởi tạo quy trình sáng tác demo thành công!');
-    } catch (err) {
-      console.error(err);
-      addToast('Lỗi khi khởi tạo dữ liệu demo');
-    } finally {
-      setLoading(false);
-    }
+      const bundle = createMultiInstrumentDemoProject();
+      await projectService.saveProject(bundle);
+      addToast('Đã tạo demo Piano + Bass + Strings + Drums trong Dự án / Lịch sử.');
+      navigate('runs');
+    } catch (cause) {
+      addToast(productErrorText(cause, 'LOCAL_STORAGE_FAILED'));
+    } finally { setLoading(false); }
   };
 
   return (
-    <div className="px-8 py-12 max-w-2xl mx-auto text-center space-y-8">
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-20 h-20 bg-indigo-500/20 text-indigo-400 rounded-3xl flex items-center justify-center mx-auto"
-      >
-        <Database className="w-10 h-10" />
-      </motion.div>
-      
-      <div className="space-y-4">
-        <h1 className="text-4xl font-bold">Kiểm tra Luồng sáng tác</h1>
-        <p className="text-zinc-400">
-          Nhấn nút bên dưới để tự động tạo một bản ghi sáng tác mẫu (Workflow Test). 
-          Điều này giúp bạn kiểm tra nhanh khả năng hiển thị MusicXML và quy trình 
-          lưu trữ lịch sử sáng tác mà không ảnh hưởng đến các cài đặt hệ thống khác.
-        </p>
+    <div className="mx-auto max-w-3xl space-y-8 px-4 py-10 text-center md:px-8 md:py-12">
+      <motion.div initial={{ scale: .9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-indigo-500/20 text-indigo-400"><Database className="h-10 w-10" /></motion.div>
+      <div className="space-y-3"><h1 className="text-3xl font-bold md:text-4xl">Demo kiểm thử sản phẩm V1</h1><p className="text-zinc-400">Tạo trực tiếp một dự án MusicXML khoảng 40 giây với 4 nhóm nhạc cụ. Không gọi Gemini, Lyria hay Firebase.</p></div>
+      <button onClick={createDemo} disabled={loading} className="mx-auto flex w-full max-w-sm items-center justify-center gap-3 rounded-2xl bg-indigo-600 py-4 text-lg font-bold text-white hover:bg-indigo-500 disabled:opacity-50">{loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Music2 className="h-6 w-6" />}Tạo demo nhiều nhạc cụ</button>
+      <div className="grid grid-cols-1 gap-3 text-left md:grid-cols-2">
+        {['Piano — GM Acoustic Grand','Bass — Electric Bass','Strings — String Ensemble','Drums — MIDI channel 10'].map(text => <div key={text} className="flex gap-3 rounded-xl border border-white/10 bg-white/5 p-4"><CheckCircle className="h-5 w-5 shrink-0 text-emerald-400" /><span className="text-sm text-zinc-300">{text}</span></div>)}
       </div>
-
-      <button
-        onClick={handleSeed}
-        disabled={loading}
-        className="w-full max-w-xs mx-auto flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-indigo-500/10"
-      >
-        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Play className="w-6 h-6" />}
-        Khởi tạo Luồng sáng tác Demo
-      </button>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-          <div className="text-sm">
-            <h4 className="font-bold text-white">Kiểm tra Firebase</h4>
-            <p className="text-zinc-500">Xác thực kết nối và quyền ghi vào Firestore.</p>
-          </div>
-        </div>
-        <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-          <div className="text-sm">
-            <h4 className="font-bold text-white">Kiểm tra MusicXML</h4>
-            <p className="text-zinc-500">Xác thực khả năng hiển thị của bộ lọc OSMD.</p>
-          </div>
-        </div>
-      </div>
+      <p className="text-xs text-zinc-600">Sau khi tạo, dùng Mixer để thử mute/solo/volume/pan rồi xuất MusicXML, MIDI, WAV và Project ZIP.</p>
     </div>
   );
 };

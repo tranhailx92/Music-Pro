@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { HtmlMediaPlaybackEngine } from '../audio/media-playback-engine';
+import { HtmlMediaPlaybackEngine, type PreviewQuality } from '../audio/media-playback-engine';
+import type { MixState } from '../projects/types';
 import { parseMusicXMLToTimeline } from '../music/score-timeline';
 
 interface AudioState {
@@ -10,6 +11,7 @@ interface AudioState {
   currentTrackArtist: string;
   hasTrack: boolean;
   currentTrackId: string | null;
+  renderer: 'soundfont' | 'basic' | 'custom' | null;
 }
 
 interface AudioContextType extends AudioState {
@@ -17,7 +19,7 @@ interface AudioContextType extends AudioState {
   seek: (value: number) => Promise<void>;
   stop: () => void;
   setTrack: (title: string, artist: string) => void;
-  loadMusicXml: (xml: string, title: string, artist?: string, autoPlay?: boolean, trackId?: string) => Promise<void>;
+  loadMusicXml: (xml: string, title: string, artist?: string, autoPlay?: boolean, trackId?: string, mix?: MixState, quality?: PreviewQuality) => Promise<void>;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -32,6 +34,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentTrackArtist, setCurrentTrackArtist] = useState('Chọn một bản nhạc để phát');
   const [hasTrack, setHasTrack] = useState(false);
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
+  const [renderer, setRenderer] = useState<'soundfont' | 'basic' | 'custom' | null>(null);
 
   if (!engineRef.current) engineRef.current = new HtmlMediaPlaybackEngine();
 
@@ -55,17 +58,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (isPlaying) {
       stopTimer();
       timerRef.current = window.setInterval(pollProgress, 100);
-    } else {
-      stopTimer();
-    }
+    } else stopTimer();
     return stopTimer;
   }, [isPlaying, pollProgress, stopTimer]);
 
-  useEffect(() => {
-    return () => {
-      stopTimer();
-      engineRef.current?.dispose();
-    };
+  useEffect(() => () => {
+    stopTimer();
+    engineRef.current?.dispose();
   }, [stopTimer]);
 
   const loadMusicXml = useCallback(async (
@@ -74,22 +73,22 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     artist = 'Music-Pro Score Preview',
     autoPlay = false,
     trackId?: string,
+    mix?: MixState,
+    quality: PreviewQuality = 'standard',
   ) => {
     const engine = engineRef.current;
     if (!engine) return;
-
     const timeline = parseMusicXMLToTimeline(xml);
     const resolvedTrackId = trackId || `${title || timeline.title || 'score'}:${xml.length}`;
-    await engine.load(timeline, resolvedTrackId);
-
+    await engine.load(timeline, resolvedTrackId, mix, quality);
     setCurrentTrackTitle(title || timeline.title || 'Bản nhạc Music-Pro');
     setCurrentTrackArtist(artist);
     setDuration(timeline.totalDurationSeconds);
     setProgress(engine.getPosition());
     setHasTrack(true);
     setCurrentTrackId(resolvedTrackId);
+    setRenderer(engine.renderer);
     setIsPlaying(false);
-
     if (autoPlay) {
       await engine.play(0);
       setIsPlaying(engine.isPlaying);
@@ -126,18 +125,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <AudioContext.Provider value={{
-      isPlaying,
-      progress,
-      duration,
-      currentTrackTitle,
-      currentTrackArtist,
-      hasTrack,
-      currentTrackId,
-      togglePlay,
-      seek,
-      stop,
-      setTrack,
-      loadMusicXml,
+      isPlaying, progress, duration, currentTrackTitle, currentTrackArtist, hasTrack, currentTrackId, renderer,
+      togglePlay, seek, stop, setTrack, loadMusicXml,
     }}>
       {children}
     </AudioContext.Provider>

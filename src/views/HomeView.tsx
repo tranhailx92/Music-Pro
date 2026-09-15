@@ -1,119 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, BookOpen, Archive, Settings, ArrowRight, Music, GitPullRequest } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Archive, ArrowRight, BookOpen, Settings, Sparkles } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useNavigation } from '../hooks/useNavigation';
-import { runsService } from '../services/runs';
+import { projectService } from '../projects/project-service';
 import { knowledgeService } from '../services/knowledge';
 import { settingsService } from '../services/settings';
-import { motion } from 'motion/react';
 
 export const HomeView: React.FC = () => {
   const { navigate } = useNavigation();
-  const [stats, setStats] = useState({ runs: 0, docs: 0 });
+  const [stats, setStats] = useState({ projects: 0, docs: 0 });
   const settings = settingsService.getSettings();
-
   useEffect(() => {
-    const loadStats = async () => {
-      const runs = await runsService.getAllRuns();
-      const docs = await knowledgeService.getAllDocs();
-      setStats({ runs: runs.length, docs: docs.length });
-    };
-    loadStats();
+    let cancelled = false;
+    void Promise.all([projectService.listProjects(), knowledgeService.getAllDocs()]).then(([projects, docs]) => {
+      if (!cancelled) setStats({ projects: projects.length, docs: docs.length });
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
   }, []);
 
-  const greeting = settings.userName ? `Chào quay trở lại, ${settings.userName}!` : 'Chào mừng bạn đến với ProjectMusic00!';
-
+  const greeting = settings.userName ? `Chào quay trở lại, ${settings.userName}!` : 'Chào mừng bạn đến với MusicPro!';
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="px-4 md:px-8 py-8 md:py-12 max-w-6xl mx-auto h-full flex flex-col space-y-12"
-    >
-      {/* Header */}
-      <div className="space-y-4">
-        <h1 className="text-4xl md:text-6xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-          {greeting}
-        </h1>
-        <p className="text-zinc-400 text-lg max-w-2xl">
-          Hệ thống Workspace chuyên dụng cho việc sáng tác nhạc MusicXML, 
-          quản lý tri thức và tự động nâng cấp kỹ năng phối khí bằng AI.
-        </p>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mx-auto flex h-full max-w-6xl flex-col space-y-10 px-4 py-8 md:px-8 md:py-12">
+      <div className="space-y-4"><h1 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent md:text-6xl">{greeting}</h1><p className="max-w-2xl text-lg text-zinc-400">Từ ý tưởng đến MusicXML master: sáng tác, nghe bằng nhạc cụ mẫu, chỉnh sửa, quản lý phiên bản và xuất sản phẩm.</p></div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <ActionCard icon={<Sparkles className="h-6 w-6" />} title="Sáng tác" description="Quy trình 4 bước tạo bản nhạc MusicXML, nghe và chỉnh ngay." action="Bắt đầu ngay" onClick={() => navigate('compose')} />
+        <ActionCard icon={<Archive className="h-6 w-6" />} title="Dự án / Lịch sử" description={`${stats.projects} dự án cục bộ với phiên bản, mixer và export.`} action="Mở dự án" onClick={() => navigate('runs')} />
+        <ActionCard icon={<BookOpen className="h-6 w-6" />} title="Kho tri thức" description={`${stats.docs} tài liệu cloud đang khả dụng.`} action="Quản lý" onClick={() => navigate('knowledge')} />
       </div>
-
-      {/* Stats & Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col justify-between group hover:bg-white/[0.07] transition-all">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-6">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Sáng tác</h2>
-            <p className="text-zinc-500 text-sm mb-6">Bắt đầu quy trình 4 bước tạo bản nhạc MusicXML chất lượng cao.</p>
-          </div>
-          <button 
-            onClick={() => navigate('compose')}
-            className="flex items-center gap-2 text-indigo-400 font-bold group-hover:translate-x-2 transition-transform"
-          >
-            Bắt đầu ngay <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col justify-between group hover:bg-white/[0.07] transition-all">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Kho tri thức</h2>
-            <p className="text-zinc-500 text-sm mb-6">Quản lý {stats.docs} tài liệu hướng dẫn và phong cách âm nhạc.</p>
-          </div>
-          <button 
-            onClick={() => navigate('knowledge')}
-            className="flex items-center gap-2 text-emerald-400 font-bold group-hover:translate-x-2 transition-transform"
-          >
-            Quản lý <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 flex flex-col justify-between group hover:bg-white/[0.07] transition-all">
-          <div>
-            <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 flex items-center justify-center mb-6">
-              <Archive className="w-6 h-6" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">Lịch sử</h2>
-            <p className="text-zinc-500 text-sm mb-6">Xem lại {stats.runs} bản ghi sáng tác và phối khí trước đây.</p>
-          </div>
-          <button 
-            onClick={() => navigate('runs')}
-            className="flex items-center gap-2 text-orange-400 font-bold group-hover:translate-x-2 transition-transform"
-          >
-            Xem lịch sử <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Secondary Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
-        <div className="bg-black/40 border border-white/10 rounded-3xl p-6 flex items-center gap-6 group hover:border-white/20 transition-all cursor-pointer" onClick={() => navigate('upgrade')}>
-          <div className="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-            <GitPullRequest className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-white">Tác nhân Cải tiến (Improver)</h3>
-            <p className="text-xs text-zinc-500">Phân tích lỗi phối khí và tự động cập nhật kho tri thức.</p>
-          </div>
-          <ArrowRight className="w-5 h-5 text-zinc-700 group-hover:text-white transition-colors" />
-        </div>
-
-        <div className="bg-black/40 border border-white/10 rounded-3xl p-6 flex items-center gap-6 group hover:border-white/20 transition-all cursor-pointer" onClick={() => navigate('settings')}>
-          <div className="w-14 h-14 rounded-2xl bg-zinc-500/10 text-zinc-400 flex items-center justify-center">
-            <Settings className="w-6 h-6" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-white">Cấu hình hệ thống</h3>
-            <p className="text-xs text-zinc-500">Cài đặt API Key, Model Gemini và thông tin cá nhân.</p>
-          </div>
-          <ArrowRight className="w-5 h-5 text-zinc-700 group-hover:text-white transition-colors" />
-        </div>
-      </div>
+      <button onClick={() => navigate('settings')} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-black/40 p-5 text-left hover:border-white/20"><div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-zinc-400"><Settings className="h-5 w-5" /></div><div className="flex-1"><div className="font-bold">Cài đặt sản phẩm</div><div className="text-xs text-zinc-500">Playback, autosave, phong cách mặc định và xuất file. API key/model được cấu hình an toàn ở máy chủ.</div></div><ArrowRight className="h-5 w-5 text-zinc-600" /></button>
     </motion.div>
   );
 };
+
+const ActionCard: React.FC<{ icon: React.ReactNode; title: string; description: string; action: string; onClick: () => void }> = ({ icon, title, description, action, onClick }) => (
+  <div className="group flex flex-col justify-between rounded-3xl border border-white/10 bg-white/5 p-7 hover:bg-white/[0.07]"><div><div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-300">{icon}</div><h2 className="mb-2 text-2xl font-bold">{title}</h2><p className="mb-6 text-sm text-zinc-500">{description}</p></div><button onClick={onClick} className="flex items-center gap-2 font-bold text-indigo-400">{action}<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></button></div>
+);

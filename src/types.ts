@@ -13,11 +13,8 @@ export interface CompositionRun {
   metaPrompt: string;
   composePrompt: string;
   arrangePrompt: string;
-  /** Backward-compatible final score field used by existing records. */
   musicXml: string;
-  /** Optional original Step-3 master score for future revisions. */
   leadMusicXml?: string;
-  /** Optional explicit Step-4 final score; falls back to musicXml for older records. */
   finalMusicXml?: string;
   title?: string;
   durationSeconds?: number;
@@ -52,4 +49,21 @@ export interface AppSettings {
   userName: string;
   userRole: string;
   temperature: number;
+  defaultStyleId: string;
+  playbackQuality: 'standard' | 'high';
+  defaultExportFormat: 'wav' | 'midi' | 'musicxml';
+  normalizeWav: boolean;
+  autoSave: boolean;
 }
+
+export type {
+  MixPartState,
+  MixState,
+  MusicProject,
+  MusicProjectBundle,
+  MusicProjectSummary,
+  ProjectRepository,
+  RevisionReason,
+  ScoreRevision,
+  ScoreSummary,
+} from './projects/types';

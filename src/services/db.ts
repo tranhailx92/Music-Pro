@@ -1,39 +1,29 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { AppSettings, UserProfile } from '../types';
-
-const DEFAULT_SETTINGS: AppSettings = {
-  userName: 'Người dùng',
-  userRole: 'Composer',
-  temperature: 0.7,
-};
+import type { AppSettings, UserProfile } from '../types';
+import { settingsService } from './settings';
 
 export const dbService = {
-  // --- Settings ---
+  // V1 settings are local-first so core product behavior never depends on Firebase.
   async getSettings(): Promise<AppSettings> {
-    if (!auth.currentUser) return DEFAULT_SETTINGS;
-    const docRef = doc(db, 'users', auth.currentUser.uid, 'settings', 'config');
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? (docSnap.data() as AppSettings) : DEFAULT_SETTINGS;
+    return settingsService.getSettings();
   },
 
   async saveSettings(settings: AppSettings): Promise<void> {
-    if (!auth.currentUser) return;
-    const docRef = doc(db, 'users', auth.currentUser.uid, 'settings', 'config');
-    await setDoc(docRef, settings, { merge: true });
+    settingsService.saveSettings(settings);
   },
 
-  // --- Profile ---
+  // Profile helpers remain cloud-backed for backward compatibility.
   async getUserProfile(): Promise<UserProfile | null> {
-    if (!auth.currentUser) return null;
+    if (!db || !auth || !auth.currentUser) return null;
     const docRef = doc(db, 'users', auth.currentUser.uid);
     const docSnap = await getDoc(docRef);
     return docSnap.exists() ? (docSnap.data() as UserProfile) : null;
   },
 
   async saveUserProfile(profile: UserProfile): Promise<void> {
-    if (!auth.currentUser) return;
+    if (!db || !auth || !auth.currentUser) return;
     const docRef = doc(db, 'users', auth.currentUser.uid);
     await setDoc(docRef, profile, { merge: true });
-  }
+  },
 };

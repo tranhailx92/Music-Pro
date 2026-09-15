@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { WifiOff } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { NavigationProvider, useNavigation } from './hooks/useNavigation';
 import { ToastProvider } from './hooks/useToast';
 import { AudioProvider } from './contexts/AudioContext';
 import { NowPlayingBar } from './components/NowPlayingBar';
-
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { HomeView } from './views/HomeView';
 import { ComposeView } from './views/ComposeView';
 import { KnowledgeView } from './views/KnowledgeView';
@@ -13,20 +14,22 @@ import { UpgradeView } from './views/UpgradeView';
 import { SettingsView } from './views/SettingsView';
 import { DemoDataView } from './views/DemoDataView';
 import { FirebaseErrorView } from './views/FirebaseErrorView';
-
 import { db } from './lib/firebase';
 
 const MainContent = () => {
   const { currentView } = useNavigation();
-  // Composer is intentionally usable without Firebase. Persistence/history remains optional.
-  const needsFirebase = ['knowledge', 'runs', 'upgrade', 'demo'].includes(currentView);
-
+  const online = useOnlineStatus();
+  // Core product screens are local-first. Only Knowledge/Improver remain cloud-backed in V1.
+  const needsFirebase = ['knowledge', 'upgrade'].includes(currentView);
   return (
-    <div className="flex-1 flex flex-col min-w-0 relative h-full">
-      {needsFirebase && !db ? (
-        <FirebaseErrorView />
-      ) : (
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+    <div className="relative flex h-full min-w-0 flex-1 flex-col">
+      {!online && (
+        <div role="status" className="flex items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          <WifiOff className="h-4 w-4" /> Đang ngoại tuyến — nghe, chỉnh sửa, xuất file và dự án cục bộ vẫn hoạt động.
+        </div>
+      )}
+      {needsFirebase && !db ? <FirebaseErrorView /> : (
+        <div className="custom-scrollbar flex-1 overflow-y-auto">
           {currentView === 'home' && <HomeView />}
           {currentView === 'compose' && <ComposeView />}
           {currentView === 'knowledge' && <KnowledgeView />}
@@ -42,15 +45,14 @@ const MainContent = () => {
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   return (
     <ToastProvider>
       <AudioProvider>
         <NavigationProvider>
-          <div className="flex flex-col h-[100dvh] bg-[#050505] text-white selection:bg-indigo-500/30 overflow-hidden">
-            <div className="flex flex-1 overflow-hidden relative">
+          <div className="flex h-[100dvh] flex-col overflow-hidden bg-[#050505] text-white selection:bg-indigo-500/30">
+            <div className="relative flex flex-1 overflow-hidden">
               <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-              <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+              <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <NowPlayingBar onMenuClick={() => setIsSidebarOpen(true)} />
                 <MainContent />
               </div>

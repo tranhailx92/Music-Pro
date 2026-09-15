@@ -1,0 +1,38 @@
+Music-Pro Product V1 Complete — Package Manifest
+Date: 2026-09-16
+Audited GitHub base: 7da6e629ac4610bfa5537d8deec0d9d2d85fb312
+Delivery: one-shot overlay patch for AI Studio
+
+Scope:
+- local-first projects + append-only revisions
+- tabbed Score/Edit/Mixer/Versions/AI Section/Export workspace
+- title/BPM/transpose/lyrics/instrument deterministic editing + undo/redo/reset
+- mixer-aware SoundFont/basic preview, MIDI and WAV
+- revision rename/restore/duplicate/summary compare
+- IndexedDB persistence, autosave/dirty/beforeunload recovery
+- project ZIP export
+- deterministic 4-instrument ~40s demo
+- local-first Settings and offline/product error UX
+- guarded section-level AI revision endpoint
+
+Protected files intentionally NOT included:
+- server/music/composer.ts
+- server/music/musicxml-validator.ts
+- server/music/song-dna.ts
+- server/music/production-blueprint.ts
+- server/music/gemini-music-brief.ts
+- package.json
+
+Local verification before packaging:
+- TypeScript integration harness: PASS
+- deterministic tests: 22 PASS / 0 FAIL
+- server.ts base reconstruction hash: PASS
+- protected-boundary scan: PASS
+- placeholder/debug scan: PASS
+- package/workspace source sync: PASS
+
+Pending in AI Studio after the single upload:
+- npm install --no-audit --no-fund --package-lock=false
+- npm run lint
+- npm run build
+- combined browser/runtime acceptance
