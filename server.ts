@@ -7,6 +7,7 @@ import { extractSongDNA } from "./server/music/song-dna";
 import { buildProductionBlueprint } from "./server/music/production-blueprint";
 import { buildGeminiMusicBrief, buildLyriaPrompt } from "./server/music/gemini-music-brief";
 import { prepareComposition, generateLeadSheet, generateArrangement } from "./server/music/composer";
+import { buildGenerationFailureDiagnostics, type GenerationFailureDiagnostics } from "./server/music/generation-failure-diagnostics";
 import { validateMusicXML } from "./server/music/musicxml-validator";
 import {
   buildSectionRevisionContext,
@@ -24,6 +25,8 @@ import {
 } from "./server/projectmusic/knowledge-admin";
 
 dotenv.config();
+
+let lastLeadSheetDiagnostics: GenerationFailureDiagnostics | null = null;
 
 function getStyleDisplayName(styleId: string): string {
   const info = getStyleInfo(styleId);
@@ -54,6 +57,15 @@ async function startServer() {
       textModel: process.env.TEXT_MODEL || 'gemini-3.5-flash-lite'
     });
   });
+
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/compose/diagnostics/lead-sheet", (_req, res) => {
+      if (!lastLeadSheetDiagnostics) {
+        return res.status(404).json({ error: { code: "NO_LEAD_SHEET_DIAGNOSTICS", message: "No lead-sheet failure diagnostics captured yet." } });
+      }
+      res.json(lastLeadSheetDiagnostics);
+    });
+  }
 
   app.get("/api/knowledge/catalog", (_req, res) => {
     try {
@@ -199,15 +211,25 @@ async function startServer() {
   });
 
   app.post("/api/compose/lead-sheet", async (req, res) => {
+    lastLeadSheetDiagnostics = null;
     try {
       const { composePrompt, composeDocRefs, metaPlan, songRequest, styleId } = req.body;
       if (!composePrompt) return res.status(400).json({ error: "Compose prompt is required" });
       const xml = await generateLeadSheet(composePrompt, composeDocRefs || [], metaPlan || "", songRequest, styleId || "STYLE.VN.VPOP-BALLAD");
       res.json({ xml });
     } catch (error: any) {
+      const diagnostics = buildGenerationFailureDiagnostics(error);
+      lastLeadSheetDiagnostics = diagnostics;
       console.error("Lead Sheet error:", error);
+      console.error("LEAD_SHEET_DIAGNOSTICS", JSON.stringify(diagnostics));
       const code = error.code || 'COMPOSITION_FAILED';
-      res.status(500).json({ error: { code, message: error.message } });
+      res.status(500).json({
+        error: {
+          code,
+          message: error.message,
+          diagnostics,
+        },
+      });
     }
   });
 

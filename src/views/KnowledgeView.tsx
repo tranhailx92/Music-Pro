@@ -115,11 +115,12 @@ export const KnowledgeView: React.FC = () => {
     return catalog.documents.filter(doc => matchesDocument(doc, query, step, tag, category));
   }, [catalog, query, step, tag, category]);
 
-  const groupedDocs = useMemo(() => filteredDocs.reduce((acc, doc) => {
+  const groupedDocs = useMemo<Record<string, KnowledgeDoc[]>>(() => filteredDocs.reduce((acc, doc) => {
     if (!acc[doc.category]) acc[doc.category] = [];
     acc[doc.category].push(doc);
     return acc;
   }, {} as Record<string, KnowledgeDoc[]>), [filteredDocs]);
+  const groupedEntries = Object.entries(groupedDocs) as Array<[string, KnowledgeDoc[]]>;
 
   const dirty = !!selected && draftContent !== selected.content;
 
@@ -208,7 +209,7 @@ export const KnowledgeView: React.FC = () => {
           <div className="sticky top-0 z-10 border-b border-white/10 bg-zinc-950/95 px-4 py-3 text-xs text-zinc-400 backdrop-blur">
             {filteredDocs.length}/{catalog?.documentCount || 0} tài liệu phù hợp
           </div>
-          {Object.entries(groupedDocs).map(([group, docs]) => (
+          {groupedEntries.map(([group, docs]) => (
             <div key={group}>
               <div className="sticky top-10 z-[5] bg-zinc-900/95 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 backdrop-blur">
                 {CATEGORY_LABELS[group] || group}

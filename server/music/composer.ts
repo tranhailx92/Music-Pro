@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, GenerateContentParameters, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentParameters, GenerateContentResponse, ThinkingLevel } from "@google/genai";
 import { getForAi, getCoreDocsForStep, getDocsByRefs, getCatalogCandidates, getStyleInfo, getCatalog } from "../projectmusic/knowledge";
 import { validateLeadSheet, validateArrangement } from "./musicxml-validator";
 
@@ -180,7 +180,8 @@ Unless the user explicitly asks for a short demo, generate a COMPLETE song form.
       config: {
         systemInstruction,
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        maxOutputTokens: 32768,
       }
     });
     
@@ -247,7 +248,8 @@ Output ONLY final arranged MusicXML 4.0.`;
       config: {
         systemInstruction,
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        maxOutputTokens: 65536,
       }
     });
     
