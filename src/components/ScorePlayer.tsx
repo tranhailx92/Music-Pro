@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, FileAudio, FileMusic, Loader2, Pause, Play, Square } from 'lucide-react';
+import { Download, FileAudio, FileMusic, Loader2, LocateFixed, Pause, Play, Square } from 'lucide-react';
 import { mixFingerprint } from '../audio/mix-state';
 import { renderTimelineToWavBlob } from '../audio/offline-render';
 import { useAudio } from '../contexts/AudioContext';
 import { timelineToMidiBlob } from '../music/midi-export';
-import { getCurrentMeasure, parseMusicXMLToTimeline } from '../music/score-timeline';
+import { parseMusicXMLToTimeline } from '../music/score-timeline';
+import { getPlaybackVisualState, type ScorePlaybackVisualState } from '../music/score-playback-visuals';
 import { scoreTrackId } from '../music/score-id';
 import type { MixState } from '../projects/types';
 import { settingsService } from '../services/settings';
@@ -18,6 +19,8 @@ interface ScorePlayerProps {
   filenameBase?: string;
   showMusicXmlDownload?: boolean;
   onCurrentMeasureChange?: (measure: number | undefined) => void;
+  onPlaybackVisualChange?: (state: ScorePlaybackVisualState | undefined) => void;
+  onRequestRecenter?: () => void;
   mix?: MixState;
 }
 
@@ -34,6 +37,8 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
   filenameBase,
   showMusicXmlDownload = true,
   onCurrentMeasureChange,
+  onPlaybackVisualChange,
+  onRequestRecenter,
   mix,
 }) => {
   const audio = useAudio();
@@ -50,7 +55,11 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
   const trackId = useMemo(() => timeline ? `${baseScoreId}:${mixFingerprint(mix, timeline)}:${playbackQuality}` : `${baseScoreId}:${playbackQuality}`, [baseScoreId, mix, playbackQuality, timeline]);
   const active = audio.currentTrackId === trackId;
   const progress = active ? audio.progress : 0;
-  const currentMeasure = timeline && active ? getCurrentMeasure(timeline, progress) : undefined;
+  const playbackVisual = useMemo(() => {
+    if (!timeline || !active) return undefined;
+    return getPlaybackVisualState(timeline, progress);
+  }, [active, progress, timeline]);
+  const currentMeasure = playbackVisual?.measure;
   const base = sanitizeFilename(filenameBase || title || timeline?.title || 'music-pro-song');
 
   useEffect(() => {
@@ -62,6 +71,10 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
       .finally(() => { if (!cancelled) setPreparingAudio(false); });
     return () => { cancelled = true; };
   }, [artist, audio.currentTrackId, audio.loadMusicXml, mix, playbackQuality, timeline, title, trackId, xmlContent]);
+
+  useEffect(() => {
+    onPlaybackVisualChange?.(playbackVisual);
+  }, [onPlaybackVisualChange, playbackVisual]);
 
   useEffect(() => { onCurrentMeasureChange?.(currentMeasure); }, [currentMeasure, onCurrentMeasureChange]);
 
@@ -106,6 +119,17 @@ export const ScorePlayer: React.FC<ScorePlayerProps> = ({
             {preparingAudio ? 'Đang chuẩn bị…' : active && audio.isPlaying ? 'Tạm dừng' : 'Nghe bản nhạc'}
           </button>
           <button onClick={() => active && audio.stop()} disabled={!active} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 disabled:opacity-40"><Square className="w-4 h-4" /> Dừng</button>
+          {active && onRequestRecenter && (
+            <button
+              type="button"
+              onClick={onRequestRecenter}
+              className="inline-flex items-center gap-2 rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-200 hover:bg-indigo-500/15"
+              aria-label="Đến vị trí đang phát trong bản nhạc"
+            >
+              <LocateFixed className="h-4 w-4" />
+              Đến vị trí đang phát
+            </button>
+          )}
           <button onClick={handleMidi} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200"><FileMusic className="w-4 h-4" /> MIDI</button>
           <button onClick={handleWav} disabled={renderingWav} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200 disabled:opacity-50">{renderingWav ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileAudio className="w-4 h-4" />} WAV</button>
           {showMusicXmlDownload && <button onClick={handleMusicXml} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-200"><Download className="w-4 h-4" /> MusicXML</button>}

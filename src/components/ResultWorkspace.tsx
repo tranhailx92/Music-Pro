@@ -3,6 +3,7 @@ import { FileMusic, Loader2, Sparkles } from 'lucide-react';
 import { createDefaultMix } from '../audio/mix-state';
 import { setPartMidiProgram } from '../music/musicxml-edit';
 import { parseMusicXMLToTimeline } from '../music/score-timeline';
+import type { ScorePlaybackVisualState } from '../music/score-playback-visuals';
 import type { MixState, MusicProjectBundle, RevisionReason } from '../projects/types';
 import { MusicXMLViewer } from './MusicXMLViewer';
 import { ScorePlayer } from './ScorePlayer';
@@ -34,7 +35,8 @@ type TabId = 'score' | 'edit' | 'mixer' | 'versions' | 'section' | 'export';
 export const ResultWorkspace: React.FC<ResultWorkspaceProps> = ({
   xmlContent, title, subtitle, filenameBase, className = '', projectBundle, onProjectChange, onChangeXml, readOnly = false, saveState, onSaveProject, onArrange, arranging = false,
 }) => {
-  const [currentMeasure, setCurrentMeasure] = useState<number | undefined>();
+  const [playbackVisual, setPlaybackVisual] = useState<ScorePlaybackVisualState | undefined>();
+  const [recenterToken, setRecenterToken] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>('score');
   const timeline = useMemo(() => { try { return parseMusicXMLToTimeline(xmlContent); } catch { return null; } }, [xmlContent]);
   const [ephemeralMix, setEphemeralMix] = useState<MixState>(() => timeline ? createDefaultMix(timeline) : { parts: {}, masterGain: 1, reverb: .12, normalizeExport: true });
@@ -109,7 +111,23 @@ export const ResultWorkspace: React.FC<ResultWorkspaceProps> = ({
       <WorkspaceTabs tabs={tabs} activeTab={activeTab} onChange={id => setActiveTab(id as TabId)} />
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {activeTab === 'score' && <div id="workspace-panel-score" role="tabpanel" className="flex min-h-0 flex-col gap-3"><ScorePlayer xmlContent={xmlContent} title={title} filenameBase={filenameBase} onCurrentMeasureChange={setCurrentMeasure} mix={mix} /><div className="min-h-[360px] flex-1 overflow-auto rounded-xl border border-white/10 bg-black"><MusicXMLViewer xmlContent={xmlContent} currentMeasure={currentMeasure} /></div></div>}
+        {activeTab === 'score' && (
+          <div id="workspace-panel-score" role="tabpanel" className="flex min-h-0 flex-col gap-3">
+            <ScorePlayer
+              xmlContent={xmlContent}
+              title={title}
+              filenameBase={filenameBase}
+              onPlaybackVisualChange={setPlaybackVisual}
+              onRequestRecenter={() => setRecenterToken(value => value + 1)}
+              mix={mix}
+            />
+            <MusicXMLViewer
+              xmlContent={xmlContent}
+              playback={playbackVisual}
+              recenterToken={recenterToken}
+            />
+          </div>
+        )}
         {activeTab === 'edit' && <EditPanel xmlContent={xmlContent} onApply={(next, label) => pushHistory(next, 'edit', label)} onUndo={undo} onRedo={redo} onReset={reset} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} readOnly={readOnly} />}
         {activeTab === 'mixer' && timeline && <MixerPanel timeline={timeline} mix={mix} onChange={updateMix} onApplyInstrument={applyInstrument} readOnly={readOnly} />}
         {activeTab === 'versions' && <RevisionsPanel bundle={projectBundle} onChange={onProjectChange} readOnly={readOnly} />}
