@@ -5,6 +5,7 @@ import { ProjectToolbar } from '../components/projects/ProjectToolbar';
 import { ResultWorkspace } from '../components/ResultWorkspace';
 import { db } from '../lib/firebase';
 import { filterAndSortProjects, type ProjectSort } from '../projects/project-list-utils';
+import { getArrangementLeadRevision, hasArrangementContext, isArrangementSourceRevision, normalizeCompositionContext, withCompositionContext } from '../projects/arrangement-resume';
 import { projectService } from '../projects/project-service';
 import { activeRevision } from '../projects/revision-utils';
 import type { MusicProjectBundle, MusicProjectSummary, RevisionReason } from '../projects/types';
@@ -20,6 +21,7 @@ export const RunsView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [style, setStyle] = useState('all');
   const [sort, setSort] = useState<ProjectSort>('updated-desc');
+  const [arranging, setArranging] = useState(false);
 
   const visibleProjects = useMemo(
     () => filterAndSortProjects(projects, { search, style, sort }),
@@ -61,6 +63,64 @@ export const RunsView: React.FC = () => {
     }
   };
 
+  const arrangeSelectedProject = async () => {
+    if (!selected) return;
+    setArranging(true);
+    setError(null);
+    try {
+      const leadRevision = getArrangementLeadRevision(selected);
+      if (!leadRevision) throw new Error('Không tìm thấy Lead Sheet của dự án.');
+
+      let workingBundle = selected;
+      let context = workingBundle.project.compositionContext;
+      if (!hasArrangementContext(context)) {
+        const prepareResponse = await fetch('/api/compose/prepare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idea: workingBundle.project.idea, styleId: workingBundle.project.style }),
+        });
+        const prepareData = await prepareResponse.json();
+        if (!prepareResponse.ok) {
+          const message = prepareData?.error?.message || prepareData?.error || 'Không thể khôi phục phương án sáng tác.';
+          throw new Error(message);
+        }
+        context = normalizeCompositionContext(prepareData);
+        workingBundle = withCompositionContext(workingBundle, context);
+        await saveBundle(workingBundle);
+      }
+
+      const arrangeResponse = await fetch('/api/compose/arrange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadSheetXml: leadRevision.musicXml,
+          arrangePrompt: context.arrangePrompt,
+          arrangeDocRefs: context.arrangeDocRefs,
+          songRequest: context.songRequest,
+          styleId: workingBundle.project.style,
+        }),
+      });
+      const arrangeData = await arrangeResponse.json();
+      if (!arrangeResponse.ok) {
+        const failure: any = new Error(arrangeData?.error?.message || arrangeData?.error || 'Phối khí thất bại.');
+        failure.code = arrangeData?.error?.code;
+        throw failure;
+      }
+      if (typeof arrangeData?.xml !== 'string' || !arrangeData.xml.trim()) throw new Error('Máy chủ không trả về MusicXML bản phối.');
+
+      const next = await projectService.appendRevision(workingBundle, {
+        musicXml: arrangeData.xml,
+        reason: 'arrange',
+        label: 'Bản phối',
+      });
+      await saveBundle(next);
+    } catch (cause) {
+      setError(productErrorText(cause, 'Phối khí thất bại. Lead Sheet hiện tại vẫn được giữ nguyên.'));
+    } finally {
+      setArranging(false);
+    }
+  };
+
   const renameProject = async (project: MusicProjectSummary) => {
     const nextTitle = window.prompt('Tên dự án mới', project.title)?.trim();
     if (!nextTitle || nextTitle === project.title) return;
@@ -97,6 +157,7 @@ export const RunsView: React.FC = () => {
   }
 
   const revision = selected ? activeRevision(selected) : undefined;
+  const canArrange = Boolean(selected && isArrangementSourceRevision(selected, revision?.id));
 
   return (
     <div className="mx-auto flex h-full max-w-[1500px] flex-col px-4 py-4 md:px-8 md:py-6">
@@ -140,6 +201,8 @@ export const RunsView: React.FC = () => {
               filenameBase={selected.project.title}
               projectBundle={selected}
               onProjectChange={bundle => void saveBundle(bundle)}
+              onArrange={canArrange ? () => void arrangeSelectedProject() : undefined}
+              arranging={arranging}
               onChangeXml={async (nextXml, reason: RevisionReason = 'edit', label = 'Chỉnh sửa') => {
                 try {
                   const next = await projectService.appendRevision(selected, { musicXml: nextXml, reason, label });

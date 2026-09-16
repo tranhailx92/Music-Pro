@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FileMusic } from 'lucide-react';
+import { FileMusic, Loader2, Sparkles } from 'lucide-react';
 import { createDefaultMix } from '../audio/mix-state';
 import { setPartMidiProgram } from '../music/musicxml-edit';
 import { parseMusicXMLToTimeline } from '../music/score-timeline';
@@ -25,12 +25,14 @@ interface ResultWorkspaceProps {
   readOnly?: boolean;
   saveState?: 'saved' | 'saving' | 'dirty';
   onSaveProject?: () => void;
+  onArrange?: () => void;
+  arranging?: boolean;
 }
 
 type TabId = 'score' | 'edit' | 'mixer' | 'versions' | 'section' | 'export';
 
 export const ResultWorkspace: React.FC<ResultWorkspaceProps> = ({
-  xmlContent, title, subtitle, filenameBase, className = '', projectBundle, onProjectChange, onChangeXml, readOnly = false, saveState, onSaveProject,
+  xmlContent, title, subtitle, filenameBase, className = '', projectBundle, onProjectChange, onChangeXml, readOnly = false, saveState, onSaveProject, onArrange, arranging = false,
 }) => {
   const [currentMeasure, setCurrentMeasure] = useState<number | undefined>();
   const [activeTab, setActiveTab] = useState<TabId>('score');
@@ -102,7 +104,7 @@ export const ResultWorkspace: React.FC<ResultWorkspaceProps> = ({
     <div className={`flex min-h-0 flex-1 flex-col gap-3 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-zinc-500"><FileMusic className="h-4 w-4" /><span>{subtitle || 'Bản nhạc Music-Pro'}</span></div>
-        <div className="flex items-center gap-2"><span aria-live="polite" className={`rounded-full px-2 py-1 text-[10px] font-bold ${!projectBundle || saveState === 'dirty' ? 'bg-amber-500/10 text-amber-300' : saveState === 'saving' ? 'bg-blue-500/10 text-blue-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{!projectBundle ? 'Chưa lưu thành dự án' : saveState === 'saving' ? 'Đang lưu…' : saveState === 'dirty' ? 'Chưa lưu' : 'Đã lưu'}</span>{projectBundle && saveState === 'dirty' && onSaveProject && <button onClick={onSaveProject} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-200">Lưu ngay</button>}</div>
+        <div className="flex items-center gap-2">{onArrange && <button onClick={onArrange} disabled={arranging || readOnly} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{arranging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}{arranging ? 'Đang phối khí…' : 'Phối khí'}</button>}<span aria-live="polite" className={`rounded-full px-2 py-1 text-[10px] font-bold ${!projectBundle || saveState === 'dirty' ? 'bg-amber-500/10 text-amber-300' : saveState === 'saving' ? 'bg-blue-500/10 text-blue-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{!projectBundle ? 'Chưa lưu thành dự án' : saveState === 'saving' ? 'Đang lưu…' : saveState === 'dirty' ? 'Chưa lưu' : 'Đã lưu'}</span>{projectBundle && saveState === 'dirty' && onSaveProject && <button onClick={onSaveProject} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-200">Lưu ngay</button>}</div>
       </div>
       <WorkspaceTabs tabs={tabs} activeTab={activeTab} onChange={id => setActiveTab(id as TabId)} />
 

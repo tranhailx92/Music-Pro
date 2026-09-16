@@ -3,6 +3,7 @@ import { ArrowRight, Copy, Headphones, Loader2, Music, Save, Sparkles } from 'lu
 import { ResultWorkspace } from '../components/ResultWorkspace';
 import { createAutosaveController, shouldWarnBeforeUnload, type AutosaveController } from '../projects/autosave';
 import { projectService } from '../projects/project-service';
+import { normalizeCompositionContext, withCompositionContext } from '../projects/arrangement-resume';
 import { workspaceTargetForStep, type WorkspaceScoreTarget } from '../projects/composition-session';
 import type { MusicProjectBundle, RevisionReason } from '../projects/types';
 import { runsService } from '../services/runs';
@@ -123,7 +124,10 @@ export const ComposeView: React.FC = () => {
       const bundle = projectBundle
         ? await projectService.appendRevision(projectBundle, { musicXml: xml, reason: 'compose', label: 'Lead Sheet' })
         : await projectService.createFromComposition({ title: idea.slice(0,100) || 'Bản nhạc Music-Pro', idea, style, musicXml: xml, reason: 'compose', label: 'Lead Sheet' });
-      setProjectBundle(bundle); setSaveState('saved');
+      const context = normalizeCompositionContext({ metaPlan, composePrompt, arrangePrompt, composeDocRefs, arrangeDocRefs, planSummary, songRequest });
+      const bundleWithContext = withCompositionContext(bundle, context);
+      await projectService.saveProject(bundleWithContext);
+      setProjectBundle(bundleWithContext); setSaveState('saved');
       addToast('Đã tạo và lưu Lead Sheet cục bộ. Có thể nghe ngay hoặc tiếp tục phối khí.');
     } catch (cause:any) { addToast(productErrorText(cause, `Tạo bản nhạc thất bại: ${cause?.message || 'Lỗi không xác định'}`)); }
     finally { setLoading(false); }

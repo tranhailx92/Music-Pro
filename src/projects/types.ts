@@ -16,6 +16,17 @@ export interface MixState {
   normalizeExport: boolean;
 }
 
+
+export interface CompositionContext {
+  metaPlan?: string;
+  composePrompt?: string;
+  arrangePrompt: string;
+  composeDocRefs?: string[];
+  arrangeDocRefs: string[];
+  planSummary?: string;
+  songRequest: unknown;
+}
+
 export interface MusicProject {
   id: string;
   title: string;
@@ -27,6 +38,7 @@ export interface MusicProject {
   leadRevisionId?: string;
   mix: MixState;
   tags: string[];
+  compositionContext?: CompositionContext;
 }
 
 export interface ScoreRevision {
